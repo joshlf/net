@@ -4,7 +4,11 @@ package net
 type arp struct {
 }
 
-func newARP() (*arp, error) {
+// newARP creates a new ARP instance. If non-zero,
+// addr4 and/or addr6 are taken to be this device's
+// IP addresses, and will be used when responding
+// to ARP requests.
+func newARP(addr4 IPv4, addr6 IPv6) (*arp, error) {
 	panic("not implemented")
 }
 

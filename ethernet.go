@@ -77,8 +77,10 @@ var BroadcastMAC = MAC{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 // as its underlying frame transport mechanism. It implements
 // the Device interface.
 type EthernetDevice struct {
-	iface EthernetInterface
-	arp   *arp // nil if the device is down
+	iface           EthernetInterface
+	arp             *arp // nil if the device is down
+	addr4, netmask4 IPv4 // unset if zero value
+	addr6, netmask6 IPv6 // unset if zero value
 
 	ipv4, ipv6 chan []byte // nil if the device is down
 
@@ -87,21 +89,21 @@ type EthernetDevice struct {
 	// Acquire a read lock for all operations.
 	// Acquire a write lock to bring the device
 	// up or down. When bringing the device down,
-	// close the down channel and wg.Wait().
-	// Then set ipv4 and ipv6 to nil. When
-	// bringing the device up, initialize ipv4,
-	// ipv6, down, and wg, then spawn worker
-	// goroutines.
+	// close the down channel and wg.Wait(). Then
+	// arp.Stop() and set arp, ipv4, ipv6 to nil.
+	// When bringing the device up, initialize
+	// ipv4, ipv6, down, wg, and arp, then spawn
+	// worker goroutines.
 	down chan struct{}
 	wg   sync.WaitGroup
 	mu   sync.RWMutex
 }
 
-var _ Device = &EthernetDevice{}
+var _ Device = &EthernetDevice{} // make sure *EthernetDevice implements Device
 
 // NewEthernetDevice creates a new EthernetDevice using iface for frame
-// transport and addr as the interface's MAC address, and brings the
-// device up.
+// transport and addr as the interface's MAC address. The returned device
+// is down, and has no associated IPv4 or IPv6 address.
 func NewEthernetDevice(iface EthernetInterface, addr MAC) (*EthernetDevice, error) {
 	err := iface.SetMAC(addr)
 	if err != nil {
@@ -111,10 +113,6 @@ func NewEthernetDevice(iface EthernetInterface, addr MAC) (*EthernetDevice, erro
 		iface: iface,
 	}
 	dev.readDeadline.Store(time.Time{})
-	err = dev.BringUp()
-	if err != nil {
-		return nil, errors.Annotate(err, "create new ethernet device")
-	}
 	return dev, nil
 }
 
@@ -166,6 +164,54 @@ func (dev *EthernetDevice) packetReader() {
 	}
 }
 
+// IPv4 returns dev's IPv4 address and network mask if they have been set.
+func (dev *EthernetDevice) IPv4() (ok bool, addr, netmask IPv4) {
+	dev.mu.RLock()
+	defer dev.mu.RUnlock()
+	if dev.addr4 == (IPv4{}) {
+		return false, addr, netmask
+	}
+	return true, dev.addr4, dev.netmask4
+}
+
+// SetIPv4 sets dev's IPv4 address and network mask, returning any error
+// encountered. SetIPv4 can only be called when dev is down.
+//
+// Calling SetIPv4 with the zero value for addr unsets the IPv4 address.
+func (dev *EthernetDevice) SetIPv4(addr, netmask IPv4) error {
+	dev.mu.Lock()
+	defer dev.mu.Unlock()
+	if dev.isUp() {
+		return errors.New("set device IP address on up device")
+	}
+	dev.addr4, dev.netmask4 = addr, netmask
+	return nil
+}
+
+// IPv6 returns dev's IPv6 address and network mask if they have been set.
+func (dev *EthernetDevice) IPv6() (ok bool, addr, netmask IPv6) {
+	dev.mu.RLock()
+	defer dev.mu.RUnlock()
+	if dev.addr6 == (IPv6{}) {
+		return false, addr, netmask
+	}
+	return true, dev.addr6, dev.netmask6
+}
+
+// SetIPv6 sets dev's IPv6 address and network mask, returning any error
+// encountered. SetIPv6 can only be called when dev is down.
+//
+// Calling SetIPv6 with the zero value for addr unsets the IPv6 address.
+func (dev *EthernetDevice) SetIPv6(addr, netmask IPv6) error {
+	dev.mu.Lock()
+	defer dev.mu.Unlock()
+	if dev.isUp() {
+		return errors.New("set device IP address on up device")
+	}
+	dev.addr6, dev.netmask6 = addr, netmask
+	return nil
+}
+
 // BringUp brings dev up. If it is already up, BringUp is a no-op.
 func (dev *EthernetDevice) BringUp() error {
 	dev.mu.Lock()
@@ -175,7 +221,7 @@ func (dev *EthernetDevice) BringUp() error {
 		return nil
 	}
 
-	arp, err := newARP()
+	arp, err := newARP(dev.addr4, dev.addr6)
 	if err != nil {
 		return errors.Annotate(err, "bring device up")
 	}
