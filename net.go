@@ -74,7 +74,7 @@ type Device interface {
 	// If len(b) is larger than the device's MTU,
 	// WriteTo will not write the packet, and will
 	// return an MTU error (see IsMTU).
-	WriteTo(b []byte, hdr IPHeader, dst IP) error
+	WriteTo(b []byte, hdr IPHeader, dst IP) (n int, err error)
 	Deadliner
 }
 
@@ -200,6 +200,11 @@ func IsMTU(err error) bool {
 	_, ok := errors.Cause(err).(mtuErr)
 	return ok
 }
+
+type timeout string
+
+func (t timeout) Error() string { return string(t) }
+func (t timeout) Timeout() bool { return true }
 
 // IsTimeout returns true if err is a timeout-related error,
 // as defined by having a Timeout() bool method which returns

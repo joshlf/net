@@ -70,6 +70,11 @@ func (hdr *IPv4Header) Marshal(b []byte) {
 	panic("not implemented")
 }
 
+// Unmarshal decodes from b into hdr.
+func (hdr *IPv4Header) Unmarshal(b []byte) error {
+	panic("not implemented")
+}
+
 // IPv6Header represents an IPv6 header.
 type IPv6Header struct {
 	// TODO(joshlf)
@@ -88,6 +93,11 @@ func (hdr *IPv6Header) Marshal(b []byte) {
 	panic("not implemented")
 }
 
+// Unmarshal decodes from b into hdr.
+func (hdr *IPv6Header) Unmarshal(b []byte) error {
+	panic("not implemented")
+}
+
 // IPHeader is an IPv4 or IPv6 header. It is only implemented by *IPv4Header
 // and *IPv6Header.
 type IPHeader interface {
@@ -98,5 +108,7 @@ type IPHeader interface {
 	// long enough (len(b) < EncodedLen()), Marshal
 	// wil panic.
 	Marshal(b []byte)
+	// Unmarshal decodes from b.
+	Unmarshal(b []byte) error
 	isIPHeader()
 }

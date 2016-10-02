@@ -5,6 +5,14 @@ import (
 	"fmt"
 )
 
+const (
+	// length in bytes of an ethernet frame header
+	// which does not include an IEEE 802.1Q tag
+	ethernetHeaderLen = 14
+	// ...which does include an IEEE 802.1Q tag
+	ethernetHeaderLen8021 = 18
+)
+
 type ethernetHeader struct {
 	src, dst MAC
 	// IEEE 802.1Q Header. Either 0 (not present), or the first
@@ -14,6 +22,13 @@ type ethernetHeader struct {
 	// for more details.
 	ieee8021Q uint32
 	et        EtherType
+}
+
+func (e ethernetHeader) EncodedLen() int {
+	if e.Has8021Q() {
+		return ethernetHeaderLen8021
+	}
+	return ethernetHeaderLen
 }
 
 // Returns true if e.ieee8021Q != 0.
@@ -61,6 +76,19 @@ func parseEthernetHeader(b []byte) (eh ethernetHeader, err error) {
 	}
 
 	return eh, nil
+}
+
+// assumes that b is long enough to hold the encoding of eh
+func writeEthernetHeader(eh ethernetHeader, b []byte) {
+	copy(getBytes(&b, 6), eh.dst[:])
+	copy(getBytes(&b, 6), eh.src[:])
+	if eh.Has8021Q() {
+		// explicitly set the TPID
+		eh.ieee8021Q &= 0xFFFF
+		eh.ieee8021Q |= 0x81000000
+		binary.BigEndian.PutUint32(getBytes(&b, 4), eh.ieee8021Q)
+	}
+	binary.BigEndian.PutUint16(getBytes(&b, 2), uint16(eh.et))
 }
 
 func getByte(b *[]byte) byte {
