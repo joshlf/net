@@ -1,0 +1,77 @@
+package net
+
+import (
+	"encoding/binary"
+	"fmt"
+)
+
+type ethernetHeader struct {
+	src, dst MAC
+	// IEEE 802.1Q Header. Either 0 (not present), or the first
+	// two bytes are 0x8100, and the second two bytes are the
+	// Tag control information (TCI).
+	// See https://en.wikipedia.org/wiki/IEEE_802.1Q#Frame_format
+	// for more details.
+	ieee8021Q uint32
+	et        EtherType
+}
+
+// Returns true if e.ieee8021Q != 0.
+func (e ethernetHeader) Has8021Q() bool {
+	return e.ieee8021Q != 0
+}
+
+// Returns the priority code point (3 bits).
+// Assumes e.Has8021Q() == true.
+func (e ethernetHeader) PCP() uint8 {
+	return uint8((e.ieee8021Q >> 13) & 3)
+}
+
+// Returns the drop eligible indicator (1 bit).
+// Assumes e.Has8021Q() == true.
+func (e ethernetHeader) DEI() uint8 {
+	return uint8((e.ieee8021Q >> 12) & 1)
+}
+
+// Returns the VLAN identifier (12 bits).
+// Assumes e.Has8021Q() == true.
+func (e ethernetHeader) VID() uint16 {
+	return uint16(e.ieee8021Q & 0xFFF)
+}
+
+func parseEthernetHeader(b []byte) (eh ethernetHeader, err error) {
+	// we use getByte and getBytes to consume b;
+	// they panic with an appropriate error if b
+	// is not long enough, and we return that error
+	defer func() {
+		r := recover()
+		if r != nil {
+			err = r.(error)
+		}
+	}()
+
+	const tpid = 0x8100
+	copy(eh.dst[:], getBytes(&b, 6))
+	copy(eh.src[:], getBytes(&b, 6))
+	eh.et = EtherType(binary.BigEndian.Uint16(getBytes(&b, 2)))
+	if eh.et == tpid {
+		eh.ieee8021Q = uint32(eh.et) << 16
+		eh.ieee8021Q |= uint32(binary.BigEndian.Uint16(getBytes(&b, 2)))
+		eh.et = EtherType(binary.BigEndian.Uint16(getBytes(&b, 2)))
+	}
+
+	return eh, nil
+}
+
+func getByte(b *[]byte) byte {
+	return getBytes(b, 1)[0]
+}
+
+func getBytes(b *[]byte, n int) []byte {
+	if len(*b) < n {
+		panic(fmt.Errorf("insufficient length"))
+	}
+	x := (*b)[:n]
+	*b = (*b)[n:]
+	return x
+}
