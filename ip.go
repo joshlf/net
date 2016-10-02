@@ -32,8 +32,8 @@ func InSubnet(addr, subnet, netmask IP) bool {
 	}
 }
 
-// InSubnetv4 is like InSubnet, but for IPv4 addresses.
-func InSubnetv4(addr, subnet, netmask IPv4) bool {
+// IPv4InSubnet is like InSubnet, but for IPv4 addresses.
+func IPv4InSubnet(addr, subnet, netmask IPv4) bool {
 	// keep only the network bits so that addr
 	// now represents just the network address
 	for i, b := range addr {
@@ -42,12 +42,61 @@ func InSubnetv4(addr, subnet, netmask IPv4) bool {
 	return addr == subnet
 }
 
-// InSubnetv6 is like InSubnet, but for IPv6 addresses.
-func InSubnetv6(addr, subnet, netmask IPv6) bool {
+// IPv6InSubnet is like InSubnet, but for IPv6 addresses.
+func IPv6InSubnet(addr, subnet, netmask IPv6) bool {
 	// keep only the network bits so that addr
 	// now represents just the network address
 	for i, b := range addr {
 		addr[i] = b & netmask[i]
 	}
 	return addr == subnet
+}
+
+// IPv4Header represents an IPv4 header.
+type IPv4Header struct {
+	// TODO(joshlf)
+}
+
+func (*IPv4Header) isIPHeader() {}
+
+// EncodedLen returns the length of the encoded version of hdr in bytes.
+func (hdr *IPv4Header) EncodedLen() int {
+	panic("not implemented")
+}
+
+// Marshal encodes hdr into b. If b is not long enough
+// (len(b) < hdr.EncodedLen()), Marshal wil panic.
+func (hdr *IPv4Header) Marshal(b []byte) {
+	panic("not implemented")
+}
+
+// IPv6Header represents an IPv6 header.
+type IPv6Header struct {
+	// TODO(joshlf)
+}
+
+func (*IPv6Header) isIPHeader() {}
+
+// EncodedLen returns the length of the encoded version of hdr in bytes.
+func (hdr *IPv6Header) EncodedLen() int {
+	panic("not implemented")
+}
+
+// Marshal encodes hdr into b. If b is not long enough
+// (len(b) < hdr.EncodedLen()), Marshal wil panic.
+func (hdr *IPv6Header) Marshal(b []byte) {
+	panic("not implemented")
+}
+
+// IPHeader is an IPv4 or IPv6 header. It is only implemented by *IPv4Header
+// and *IPv6Header.
+type IPHeader interface {
+	// EncodedLen returns the length of the encoded
+	// version of the header in bytes.
+	EncodedLen() int
+	// Marshal encodes the header into b. If b is not
+	// long enough (len(b) < EncodedLen()), Marshal
+	// wil panic.
+	Marshal(b []byte)
+	isIPHeader()
 }

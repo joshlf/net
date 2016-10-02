@@ -1,28 +1,40 @@
 package net
 
 import (
-	"net"
 	"time"
 
 	"github.com/juju/errors"
 )
 
-// A Device is a handle on a physical or virtual network device.
+// TODO(joshlf): Maybe rename Device to IPDevice
+// These Devices only support IP operations, and
+// maybe we want a lower-level device interface
+// that allows writing directly to link-layer
+// addresses. Alternatively:
+//   - That interface should be called LinkDevice
+//     (or similar)
+//   - Those devices require special per-device
+//     types (e.g., an ethernet MAC address), so
+//     a common Go interface doesn't make sense.
+
+// A Device is a handle on a physical or virtual network device. A Device
+// must implement the IPv4Device or IPv6Device interfaces, although
+// it may also implement both.
 //
 // Devices are safe for concurrent access.
 type Device interface {
-	// IPv4 returns the device's IPv4 address, subnet address, and network mask
-	// if they have been set.
-	IPv4() (ok bool, addr, subnet, netmask IPv4)
-	// SetIPv4 sets the device's IPv4 address, subnet address, and network mask,
-	// returning any error encountered.
-	SetIPv4(addr, subnet, netmask IPv4) error
-	// IPv6 returns the device's IPv6 address, subnet address, and network mask
-	// if they have been set.
-	IPv6() (ok bool, addr, subnet, netmask IPv6)
-	// SetIPv6 sets the device's IPv6 address, subnet address, and network mask,
-	// returning any error encountered.
-	SetIPv6(addr, subnet, netmask IPv6) error
+	// // IPv4 returns the device's IPv4 address, subnet address, and network mask
+	// // if they have been set.
+	// IPv4() (ok bool, addr, subnet, netmask IPv4)
+	// // SetIPv4 sets the device's IPv4 address, subnet address, and network mask,
+	// // returning any error encountered.
+	// SetIPv4(addr, subnet, netmask IPv4) error
+	// // IPv6 returns the device's IPv6 address, subnet address, and network mask
+	// // if they have been set.
+	// IPv6() (ok bool, addr, subnet, netmask IPv6)
+	// // SetIPv6 sets the device's IPv6 address, subnet address, and network mask,
+	// // returning any error encountered.
+	// SetIPv6(addr, subnet, netmask IPv6) error
 
 	// BringUp brings the Device up. If it is already up,
 	// BringUp is a no-op.
@@ -32,8 +44,6 @@ type Device interface {
 	BringDown() error
 	// IsUp returns true if the Device is up.
 	IsUp() bool
-	// IsDown returns true if the Device is down.
-	IsDown() bool
 
 	// MTU returns the device's maximum transmission unit,
 	// or 0 if no MTU is set.
@@ -47,46 +57,15 @@ type Device interface {
 	// copying the payload into b. It returns the
 	// number of bytes copied into b and the return
 	// address and protocol that were on the packet.
-	//
-	// If a packet larger than len(b) is received,
-	// n will be len(b), and err will be io.EOF
-	ReadFrom(b []byte) (n int, addr net.Addr, proto Protocol, err error)
-	// WriteTo writes a packet to the device with
-	// the specified remote address and protocol.
-	//
-	// If len(b) is larger than the device's MTU,
-	// WriteTo will not write the packet, and will
-	// return an error such that IsMTU(err) == true.
-	WriteTo(b []byte, addr net.Addr, proto Protocol) error
-
-	// GetConn returns a DeviceConn which only reads packets
-	// with the given protocol, unless proto is nil, in which
-	// case all protocols are read. If proto is not nil, it is
-	// an error to write a packet to dc with a protocol other
-	// than proto.
-	GetConn(proto Protocol) (dc DeviceConn, err error)
-}
-
-// A DeviceConn is a handle to reading packets from and writing packets to
-// a Device. It provides functionality that is not global to the Device
-// such as deadlines.
-//
-// DeviceConns are safe for concurrent access.
-type DeviceConn interface {
-	// ReadFrom reads a packet from the device,
-	// copying the payload into b. It returns the
-	// number of bytes copied into b and the return
-	// address and protocol that were on the packet.
 	// ReadFrom can be made to time out and return
 	// an error with Timeout() == true after a fixed
 	// time limit; see SetDeadline and SetReadDeadline.
 	//
 	// If a packet larger than len(b) is received,
 	// n will be len(b), and err will be io.EOF
-	ReadFrom(b []byte) (n int, addr net.Addr, proto Protocol, err error)
-
+	ReadFrom(b []byte) (n int, hdr IPHeader, err error)
 	// WriteTo writes a packet to the device with
-	// the specified remote address and protocol.
+	// the specified destination address.
 	// WriteTo can be made to time out and return
 	// an error with Timeout() == true after a fixed time limit;
 	// see SetDeadline and SetWriteDeadline.
@@ -94,27 +73,116 @@ type DeviceConn interface {
 	//
 	// If len(b) is larger than the device's MTU,
 	// WriteTo will not write the packet, and will
-	// return an error such that IsMTU(err) == true.
-	WriteTo(b []byte, addr net.Addr, proto Protocol) error
+	// return an MTU error (see IsMTU).
+	WriteTo(b []byte, hdr IPHeader, dst IP) error
+	Deadliner
+}
 
-	// SetDeadline sets the read and write deadlines associated
-	// with the connection.
-	SetDeadline(t time.Time) error
+// An IPv4Device is a Device with IPv4-specific methods.
+type IPv4Device interface {
+	Device
 
-	// SetReadDeadline sets the deadline for future Read calls.
-	// If the deadline is reached, Read will fail with a timeout
-	// (see type Error) instead of blocking.
-	// A zero value for t means Read will not time out.
+	// ReadFromIPv4 is like Device's ReadFrom,
+	// but for IPv4 only.
+	ReadFromIPv4(b []byte) (n int, hdr *IPv4Header, err error)
+	// WriteToIPv4 is like Device's WriteTo,
+	// but for IPv4 only.
+	WriteToIPv4(b []byte, hdr *IPv4Header, dst IP) error
+}
+
+// An IPv6Device is a Device with IPv6-specific methods.
+type IPv6Device interface {
+	Device
+
+	// ReadFromIPv6 is like Device's ReadFrom,
+	// but for IPv6 only.
+	ReadFromIPv6(b []byte) (n int, hdr *IPv6Header, err error)
+	// WriteToIPv6 is like Device's WriteTo,
+	// but for IPv6 only.
+	WriteToIPv6(b []byte, hdr *IPv6Header, dst IP) error
+}
+
+//
+// // A DeviceConn is a handle to reading IP packets from and writing IP packets to
+// // a Device.
+// //
+// // DeviceConns are safe for concurrent access.
+// type DeviceConn interface {
+// 	// ReadFrom reads a packet from the device,
+// 	// copying the payload into b. It returns the
+// 	// number of bytes copied into b and the return
+// 	// address and protocol that were on the packet.
+// 	// ReadFrom can be made to time out and return
+// 	// an error with Timeout() == true after a fixed
+// 	// time limit; see SetDeadline and SetReadDeadline.
+// 	//
+// 	// If a packet larger than len(b) is received,
+// 	// n will be len(b), and err will be io.EOF
+// 	ReadFrom(b []byte) (n int, hdr IPHeader, err error)
+//
+// 	// WriteTo writes a packet to the device with
+// 	// the specified destination address.
+// 	// WriteTo can be made to time out and return
+// 	// an error with Timeout() == true after a fixed time limit;
+// 	// see SetDeadline and SetWriteDeadline.
+// 	// On device connections, write timeouts are rare.
+// 	//
+// 	// If len(b) is larger than the device's MTU,
+// 	// WriteTo will not write the packet, and will
+// 	// return an MTU error (see IsMTU).
+// 	WriteTo(b []byte, hdr IPHeader, dst IP) error
+//
+// 	Deadliner
+// }
+//
+// // IPv4DeviceConn is like DeviceConn, but for IPv4.
+// type IPv4DeviceConn interface {
+// 	// ReadFrom is like DeviceConn's ReadFrom,
+// 	// but for IPv4 only.
+// 	ReadFrom(b []byte) (n int, hdr IPv4Header, err error)
+// 	// WriteTo is like DeviceConn's WriteTo,
+// 	// but for IPv4 only.
+// 	WriteTo(b []byte, hdr IPv4Header, dst IP) error
+// 	Deadliner
+// }
+//
+// // IPv6DeviceConn is like DeviceConn, but for IPv6.
+// type IPv6DeviceConn interface {
+// 	// ReadFrom is like DeviceConn's ReadFrom,
+// 	// but for IPv6 only.
+// 	ReadFrom(b []byte) (n int, hdr IPv6Header, err error)
+// 	// WriteTo is like DeviceConn's WriteTo,
+// 	// but for IPv6 only.
+// 	WriteTo(b []byte, hdr IPv6Header, dst IP) error
+// 	Deadliner
+// }
+
+// ReadDeadliner is the interface that wraps the SetReadDeadline method.
+type ReadDeadliner interface {
+	// SetReadDeadline sets the deadline for future read-related calls
+	// (Read, ReadFrom, etc). If the deadline is reached, these calls
+	// will fail with a timeout (see IsTimeout) instead of blocking.
+	// A zero value for t means read calls will not time out.
 	SetReadDeadline(t time.Time) error
+}
 
-	// SetWriteDeadline sets the deadline for future Write calls.
-	// If the deadline is reached, Write will fail with a timeout
-	// (see type Error) instead of blocking.
-	// A zero value for t means Write will not time out.
-	// Even if write times out, it may return n > 0, indicating that
-	// some of the data was successfully written.
+// WriteDeadliner is the interface that wraps the SetWriteDeadline method.
+type WriteDeadliner interface {
+	// SetWriteDeadline sets the deadline for future write-related calls
+	// (Write, WriteTo, etc). If the deadline is reached, these calls
+	// will fail with a timeout (see IsTimeout) instead of blocking.
+	// A zero value for t means write calls will not time out.
 	SetWriteDeadline(t time.Time) error
 }
+
+// Deadliner is the type that wraps all three deadline-related methods.
+type Deadliner interface {
+	ReadDeadliner
+	WriteDeadliner
+	SetDeadline(t time.Time) error // Call SetReadDeadline(t) and SetWriteDeadline(t)
+}
+
+// TODO(joshlf): Maybe we don't need the Protocol type?
 
 // A Protocol represents a protocol implemented on top of a particular
 // network layer.
