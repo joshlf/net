@@ -11,10 +11,18 @@ import (
 //
 // Devices are safe for concurrent access.
 type Device interface {
-	// IPv4 returns the Device's IPv4 address, if any.
-	IPv4() (ok bool, addr IPv4)
-	// IPv6 returns the Device's IPv6 address, if any.
-	IPv6() (ok bool, addr IPv6)
+	// IPv4 returns the device's IPv4 address, subnet address, and network mask
+	// if they have been set.
+	IPv4() (ok bool, addr, subnet, netmask IPv4)
+	// SetIPv4 sets the device's IPv4 address, subnet address, and network mask,
+	// returning any error encountered.
+	SetIPv4(addr, subnet, netmask IPv4) error
+	// IPv6 returns the device's IPv6 address, subnet address, and network mask
+	// if they have been set.
+	IPv6() (ok bool, addr, subnet, netmask IPv6)
+	// SetIPv6 sets the device's IPv6 address, subnet address, and network mask,
+	// returning any error encountered.
+	SetIPv6(addr, subnet, netmask IPv6) error
 
 	// BringUp brings the Device up. If it is already up,
 	// BringUp is a no-op.
@@ -27,12 +35,12 @@ type Device interface {
 	// IsDown returns true if the Device is down.
 	IsDown() bool
 
-	// GetMTU returns the device's maximum transmission unit,
+	// MTU returns the device's maximum transmission unit,
 	// or 0 if no MTU is set.
-	GetMTU() uint64
-
+	MTU() uint64
 	// SetMTU sets the maximum transmission unit on the device,
-	// returning any error encountered. Note that
+	// returning any error encountered. Some devices may not support
+	// MTUs, and SetMTU on such devices will return an error.
 	SetMTU(mtu uint64) error
 
 	// ReadFrom reads a packet from the device,
@@ -117,17 +125,12 @@ type Protocol interface {
 type mtuErr string
 
 func (m mtuErr) Error() string { return string(m) }
-func (m mtuErr) MTU() bool     { return true }
 
-// IsMTU returns true if err is an MTU-related error,
-// as defined by having an MTU() bool method which
-// returns true.
+// IsMTU returns true if err is an MTU-related error
+// created by this package.
 func IsMTU(err error) bool {
-	type mtu interface {
-		MTU() bool
-	}
-	me, ok := errors.Cause(err).(mtu)
-	return ok && me.MTU()
+	_, ok := errors.Cause(err).(mtuErr)
+	return ok
 }
 
 // IsTimeout returns true if err is a timeout-related error,
