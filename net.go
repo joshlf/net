@@ -23,27 +23,6 @@ import (
 //
 // Devices are safe for concurrent access.
 type Device interface {
-	// IPv4 returns the device's IPv4 address and network mask
-	// if they have been set.
-	IPv4() (ok bool, addr, netmask IPv4)
-	// SetIPv4 sets the device's IPv4 address and network mask,
-	// returning any error encountered. SetIPv4 can only be
-	// called when the device is down.
-	//
-	// Calling SetIPv4 with the zero value for addr unsets
-	// the IPv4 address.
-	SetIPv4(addr, netmask IPv4) error
-	// IPv6 returns the device's IPv6 address and network mask
-	// if they have been set.
-	IPv6() (ok bool, addr, netmask IPv6)
-	// SetIPv6 sets the device's IPv6 address and network mask,
-	// returning any error encountered. SetIPv6 can only be
-	// called when the device is down.
-	//
-	// Calling SetIPv6 with the zero value for addr unsets
-	// the IPv6 address.
-	SetIPv6(addr, netmask IPv6) error
-
 	// BringUp brings the Device up. If it is already up,
 	// BringUp is a no-op.
 	BringUp() error
@@ -90,24 +69,46 @@ type Device interface {
 type IPv4Device interface {
 	Device
 
+	// IPv4 returns the device's IPv4 address and network mask
+	// if they have been set.
+	IPv4() (ok bool, addr, netmask IPv4)
+	// SetIPv4 sets the device's IPv4 address and network mask,
+	// returning any error encountered. SetIPv4 can only be
+	// called when the device is down.
+	//
+	// Calling SetIPv4 with the zero value for addr unsets
+	// the IPv4 address.
+	SetIPv4(addr, netmask IPv4) error
+
 	// ReadFromIPv4 is like Device's ReadFrom,
 	// but for IPv4 only.
 	ReadFromIPv4(b []byte) (n int, hdr *IPv4Header, err error)
 	// WriteToIPv4 is like Device's WriteTo,
 	// but for IPv4 only.
-	WriteToIPv4(b []byte, hdr *IPv4Header, dst IP) error
+	WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n int, err error)
 }
 
 // An IPv6Device is a Device with IPv6-specific methods.
 type IPv6Device interface {
 	Device
 
+	// IPv6 returns the device's IPv6 address and network mask
+	// if they have been set.
+	IPv6() (ok bool, addr, netmask IPv6)
+	// SetIPv6 sets the device's IPv6 address and network mask,
+	// returning any error encountered. SetIPv6 can only be
+	// called when the device is down.
+	//
+	// Calling SetIPv6 with the zero value for addr unsets
+	// the IPv6 address.
+	SetIPv6(addr, netmask IPv6) error
+
 	// ReadFromIPv6 is like Device's ReadFrom,
 	// but for IPv6 only.
 	ReadFromIPv6(b []byte) (n int, hdr *IPv6Header, err error)
 	// WriteToIPv6 is like Device's WriteTo,
 	// but for IPv6 only.
-	WriteToIPv6(b []byte, hdr *IPv6Header, dst IP) error
+	WriteToIPv6(b []byte, hdr *IPv6Header, dst IPv6) (n int, err error)
 }
 
 //

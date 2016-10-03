@@ -1,7 +1,6 @@
 package net
 
 import (
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -99,7 +98,9 @@ type EthernetDevice struct {
 	mu   sync.RWMutex
 }
 
-var _ Device = &EthernetDevice{} // make sure *EthernetDevice implements Device
+var _ Device = &EthernetDevice{}     // make sure *EthernetDevice implements Device
+var _ IPv4Device = &EthernetDevice{} // make sure *EthernetDevice implements IPv4Device
+var _ IPv6Device = &EthernetDevice{} // make sure *EthernetDevice implements IPv6Device
 
 // NewEthernetDevice creates a new EthernetDevice using iface for frame
 // transport and addr as the interface's MAC address. The returned device
@@ -221,7 +222,8 @@ func (dev *EthernetDevice) BringUp() error {
 		return nil
 	}
 
-	arp, err := newARP(dev.addr4, dev.addr6)
+	_, mac := dev.iface.MAC()
+	arp, err := newARP(mac, dev.addr4)
 	if err != nil {
 		return errors.Annotate(err, "bring device up")
 	}
@@ -394,9 +396,9 @@ func (dev *EthernetDevice) WriteTo(b []byte, hdr IPHeader, dst IP) (n int, err e
 	case !hdrOK && !dstOK:
 		return dev.WriteToIPv6(b, hdr.(*IPv6Header), dst.(IPv6))
 	case hdrOK && !dstOK:
-		return 0, fmt.Errorf("write to device: IPv4 header with IPv6 address")
+		return 0, errors.New("write to device: IPv4 header with IPv6 address")
 	default:
-		return 0, fmt.Errorf("write to device: IPv6 header with IPv4 address")
+		return 0, errors.New("write to device: IPv6 header with IPv4 address")
 	}
 }
 
@@ -408,7 +410,7 @@ func (dev *EthernetDevice) WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n i
 		return 0, errors.New("write to down device")
 	}
 
-	buf := encodeHeaderAndBody(b, hdr)
+	buf := encodeHeaderAndBody(b, hdr, ethernetHeaderLen)
 	mac, err := dev.arp.LookupIPv4(dst)
 	if err != nil {
 		return 0, errors.Annotate(err, "write to device")
@@ -421,10 +423,7 @@ func (dev *EthernetDevice) WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n i
 	} else {
 		n -= hdrlen
 	}
-	if err != nil {
-		return n, errors.Annotate(err, "write to device")
-	}
-	return n, nil
+	return n, errors.Annotate(err, "write to device")
 }
 
 // WriteToIPv6 is like WriteTo, but for IPv6 only.
@@ -435,7 +434,7 @@ func (dev *EthernetDevice) WriteToIPv6(b []byte, hdr *IPv6Header, dst IPv6) (n i
 		return 0, errors.New("write to down device")
 	}
 
-	buf := encodeHeaderAndBody(b, hdr)
+	buf := encodeHeaderAndBody(b, hdr, ethernetHeaderLen)
 	mac, err := dev.arp.LookupIPv6(dst)
 	if err != nil {
 		return 0, errors.Annotate(err, "write to device")
@@ -498,11 +497,11 @@ func (dev *EthernetDevice) SetDeadline(t time.Time) error {
 
 // encodeHeaderAndBody encodes an IP packet with the payload
 // b and the header hdr. The returned byte slice includes
-// space for an ethernet frame header.
-func encodeHeaderAndBody(b []byte, hdr IPHeader) []byte {
+// any extra space that is specified.
+func encodeHeaderAndBody(b []byte, hdr IPHeader, extra int) []byte {
 	hdrlen := hdr.EncodedLen()
-	buf := getByteSlice(ethernetHeaderLen + hdrlen + len(b))
-	hdr.Marshal(buf[ethernetHeaderLen:])
-	copy(buf[ethernetHeaderLen+hdrlen:], b)
+	buf := getByteSlice(extra + hdrlen + len(b))
+	hdr.Marshal(buf[extra:])
+	copy(buf[extra+hdrlen:], b)
 	return b
 }

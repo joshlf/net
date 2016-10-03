@@ -75,6 +75,10 @@ func (hdr *IPv4Header) Unmarshal(b []byte) error {
 	panic("not implemented")
 }
 
+const (
+	ipv4HeaderMaxLen = 28
+)
+
 // IPv6Header represents an IPv6 header.
 type IPv6Header struct {
 	// TODO(joshlf)
