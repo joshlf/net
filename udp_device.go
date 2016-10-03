@@ -1,7 +1,6 @@
 package net
 
 import (
-	"io"
 	"net"
 	"sync"
 	"time"
@@ -99,76 +98,26 @@ func (dev *UDPIPv4Device) isUp() bool {
 // MTU returns 0; UDPIPv4Devices do not support MTUs.
 func (dev *UDPIPv4Device) MTU() uint64 { return 0 }
 
-// SetMTU returns an error; UDPIPv4Devices do not support MTUs.
-func (dev *UDPIPv4Device) SetMTU(mtu uint64) error {
-	return errors.New("UDPIPv4Device does not support setting MTU")
-}
-
-func (dev *UDPIPv4Device) ReadFrom(b []byte) (n int, hdr IPHeader, err error) {
-	n, ihdr, err := dev.ReadFromIPv4(b)
-	if ihdr != nil {
-		hdr = ihdr
-	}
-	return n, hdr, err
-}
-
-func (dev *UDPIPv4Device) ReadFromIPv4(b []byte) (n int, hdr *IPv4Header, err error) {
+func (dev *UDPIPv4Device) ReadIPv4(b []byte) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
-		return 0, nil, errors.New("read from to down device")
+		return 0, errors.New("read from to down device")
 	}
 
-	buf := getByteSlice(ipv4HeaderMaxLen + len(b))
-	nn, err := dev.conn.Read(buf)
-	buf = buf[:nn]
-	if err != nil {
-		return 0, nil, errors.Annotate(err, "read from device")
-	}
-	hdr = new(IPv4Header)
-	err = hdr.Unmarshal(buf)
-	if err != nil {
-		return 0, nil, errors.Annotate(err, "read from device")
-	}
-	buf = buf[hdr.EncodedLen():]
-	n = copy(b, buf)
-	if len(b) < len(buf) {
-		return n, hdr, io.EOF
-	}
-	return n, hdr, nil
-}
-
-func (dev *UDPIPv4Device) WriteTo(b []byte, hdr IPHeader, dst IP) (n int, err error) {
-	hdr4, hdrOK := hdr.(*IPv4Header)
-	dst4, dstOK := dst.(IPv4)
-	switch {
-	case hdrOK && dstOK:
-		return dev.WriteToIPv4(b, hdr4, dst4)
-	case !hdrOK && !dstOK:
-		return 0, errors.New("write IPv6 packet to IPv4-only device")
-	case hdrOK && !dstOK:
-		return 0, errors.New("write to device: IPv4 header with IPv6 address")
-	default:
-		return 0, errors.New("write to device: IPv6 header with IPv4 address")
-	}
+	n, err = dev.conn.Read(b)
+	return n, errors.Annotate(err, "read from device")
 }
 
 // WriteToIPv4 is like Device's WriteTo, but for IPv4 only.
-func (dev *UDPIPv4Device) WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n int, err error) {
+func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
 		return 0, errors.New("write to down device")
 	}
 
-	buf := encodeHeaderAndBody(b, hdr, 0)
-	n, err = dev.conn.Write(buf)
-	hdrlen := hdr.EncodedLen()
-	if n < hdrlen {
-		n = 0
-	} else {
-		n -= hdrlen
-	}
+	n, err = dev.conn.Write(b)
 	return n, errors.Annotate(err, "write to device")
 }
 

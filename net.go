@@ -35,33 +35,29 @@ type Device interface {
 	// MTU returns the device's maximum transmission unit,
 	// or 0 if no MTU is set.
 	MTU() uint64
-	// SetMTU sets the maximum transmission unit on the device,
-	// returning any error encountered. Some devices may not support
-	// MTUs, and SetMTU on such devices will return an error.
-	SetMTU(mtu uint64) error
 
-	// ReadFrom reads a packet from the device,
-	// copying the payload into b. It returns the
-	// number of bytes copied into b and the return
-	// address and protocol that were on the packet.
-	// ReadFrom can be made to time out and return
-	// an error with Timeout() == true after a fixed
-	// time limit; see SetDeadline and SetReadDeadline.
-	//
-	// If a packet larger than len(b) is received,
-	// n will be len(b), and err will be io.EOF
-	ReadFrom(b []byte) (n int, hdr IPHeader, err error)
-	// WriteTo writes a packet to the device with
-	// the specified destination address.
-	// WriteTo can be made to time out and return
-	// an error with Timeout() == true after a fixed time limit;
-	// see SetDeadline and SetWriteDeadline.
-	// On device connections, write timeouts are rare.
-	//
-	// If len(b) is larger than the device's MTU,
-	// WriteTo will not write the packet, and will
-	// return an MTU error (see IsMTU).
-	WriteTo(b []byte, hdr IPHeader, dst IP) (n int, err error)
+	// // Read reads a packet from the device,
+	// // copying the payload into b. It returns the
+	// // number of bytes copied into b and the return
+	// // address and protocol that were on the packet.
+	// // ReadFrom can be made to time out and return
+	// // an error with Timeout() == true after a fixed
+	// // time limit; see SetDeadline and SetReadDeadline.
+	// //
+	// // If a packet larger than len(b) is received,
+	// // n will be len(b), and err will be io.EOF
+	// Read(b []byte) (n int, err error)
+	// // WriteTo writes a packet to the device with
+	// // the specified destination address.
+	// // WriteTo can be made to time out and return
+	// // an error with Timeout() == true after a fixed time limit;
+	// // see SetDeadline and SetWriteDeadline.
+	// // On device connections, write timeouts are rare.
+	// //
+	// // If len(b) is larger than the device's MTU,
+	// // WriteTo will not write the packet, and will
+	// // return an MTU error (see IsMTU).
+	// WriteTo(b []byte, dst IP) (n int, err error)
 	Deadliner
 }
 
@@ -80,12 +76,12 @@ type IPv4Device interface {
 	// the IPv4 address.
 	SetIPv4(addr, netmask IPv4) error
 
-	// ReadFromIPv4 is like Device's ReadFrom,
+	// ReadIPv4 is like Device's Read,
 	// but for IPv4 only.
-	ReadFromIPv4(b []byte) (n int, hdr *IPv4Header, err error)
+	ReadIPv4(b []byte) (n int, err error)
 	// WriteToIPv4 is like Device's WriteTo,
 	// but for IPv4 only.
-	WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n int, err error)
+	WriteToIPv4(b []byte, dst IPv4) (n int, err error)
 }
 
 // An IPv6Device is a Device with IPv6-specific methods.
@@ -103,68 +99,13 @@ type IPv6Device interface {
 	// the IPv6 address.
 	SetIPv6(addr, netmask IPv6) error
 
-	// ReadFromIPv6 is like Device's ReadFrom,
+	// ReadIPv6 is like Device's Read,
 	// but for IPv6 only.
-	ReadFromIPv6(b []byte) (n int, hdr *IPv6Header, err error)
+	ReadIPv6(b []byte) (n int, err error)
 	// WriteToIPv6 is like Device's WriteTo,
 	// but for IPv6 only.
-	WriteToIPv6(b []byte, hdr *IPv6Header, dst IPv6) (n int, err error)
+	WriteToIPv6(b []byte, dst IPv6) (n int, err error)
 }
-
-//
-// // A DeviceConn is a handle to reading IP packets from and writing IP packets to
-// // a Device.
-// //
-// // DeviceConns are safe for concurrent access.
-// type DeviceConn interface {
-// 	// ReadFrom reads a packet from the device,
-// 	// copying the payload into b. It returns the
-// 	// number of bytes copied into b and the return
-// 	// address and protocol that were on the packet.
-// 	// ReadFrom can be made to time out and return
-// 	// an error with Timeout() == true after a fixed
-// 	// time limit; see SetDeadline and SetReadDeadline.
-// 	//
-// 	// If a packet larger than len(b) is received,
-// 	// n will be len(b), and err will be io.EOF
-// 	ReadFrom(b []byte) (n int, hdr IPHeader, err error)
-//
-// 	// WriteTo writes a packet to the device with
-// 	// the specified destination address.
-// 	// WriteTo can be made to time out and return
-// 	// an error with Timeout() == true after a fixed time limit;
-// 	// see SetDeadline and SetWriteDeadline.
-// 	// On device connections, write timeouts are rare.
-// 	//
-// 	// If len(b) is larger than the device's MTU,
-// 	// WriteTo will not write the packet, and will
-// 	// return an MTU error (see IsMTU).
-// 	WriteTo(b []byte, hdr IPHeader, dst IP) error
-//
-// 	Deadliner
-// }
-//
-// // IPv4DeviceConn is like DeviceConn, but for IPv4.
-// type IPv4DeviceConn interface {
-// 	// ReadFrom is like DeviceConn's ReadFrom,
-// 	// but for IPv4 only.
-// 	ReadFrom(b []byte) (n int, hdr IPv4Header, err error)
-// 	// WriteTo is like DeviceConn's WriteTo,
-// 	// but for IPv4 only.
-// 	WriteTo(b []byte, hdr IPv4Header, dst IP) error
-// 	Deadliner
-// }
-//
-// // IPv6DeviceConn is like DeviceConn, but for IPv6.
-// type IPv6DeviceConn interface {
-// 	// ReadFrom is like DeviceConn's ReadFrom,
-// 	// but for IPv6 only.
-// 	ReadFrom(b []byte) (n int, hdr IPv6Header, err error)
-// 	// WriteTo is like DeviceConn's WriteTo,
-// 	// but for IPv6 only.
-// 	WriteTo(b []byte, hdr IPv6Header, dst IP) error
-// 	Deadliner
-// }
 
 // ReadDeadliner is the interface that wraps the SetReadDeadline method.
 type ReadDeadliner interface {
@@ -189,14 +130,6 @@ type Deadliner interface {
 	ReadDeadliner
 	WriteDeadliner
 	SetDeadline(t time.Time) error // Call SetReadDeadline(t) and SetWriteDeadline(t)
-}
-
-// TODO(joshlf): Maybe we don't need the Protocol type?
-
-// A Protocol represents a protocol implemented on top of a particular
-// network layer.
-type Protocol interface {
-	String() string
 }
 
 type mtuErr string

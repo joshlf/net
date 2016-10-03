@@ -276,86 +276,57 @@ func (dev *EthernetDevice) MTU() uint64 {
 	return mtu
 }
 
-// SetMTU sets dev's maximum transmission unit, returning any error encountered.
-func (dev *EthernetDevice) SetMTU(mtu uint64) error {
-	dev.mu.RLock()
-	err := errors.Annotate(dev.iface.SetMTU(mtu), "set mtu on device")
-	dev.mu.RUnlock()
-	return err
-}
-
-// readFrom performs a generic read. To read only IPv4, set ipv6 to nil.
-// To read only IPv6, set ipv4 to nil. Assumes dev.mu.RLock().
-func (dev *EthernetDevice) readFrom(b []byte, ipv4, ipv6 chan []byte) (n int, hdr IPHeader, err error) {
-	var buf []byte
-	for {
-		select {
-		case <-dev.getReadDeadlineTimer():
-			return 0, nil, timeout("read timeout")
-		case buf = <-ipv4:
-			hdr = new(IPv4Header)
-		case buf = <-ipv6:
-			hdr = new(IPv6Header)
-		}
-		err = hdr.Unmarshal(buf)
-		if err != nil {
-			// TODO(joshlf): Log it
-			continue
-		}
-		buf = buf[hdr.EncodedLen():]
+// readFrom performs a generic read
+func (dev *EthernetDevice) readFrom(b []byte, packets chan []byte) (n int, err error) {
+	select {
+	case <-dev.getReadDeadlineTimer():
+		return 0, timeout("read timeout")
+	case buf := <-packets:
 		n = copy(b, buf)
 		if len(b) < len(buf) {
-			return n, hdr, io.EOF
+			return n, io.EOF
 		}
-		return n, hdr, nil
+		return n, nil
 	}
 }
 
-// ReadFrom reads an IP packet from dev, copying the payload into b.
-// It returns the number of bytes copied and the IP header on the packet.
-// ReadFrom can be made to time out and return an error after a fixed
-// time limit; see IsTimeout, SetDeadline, and SetReadDeadline.
+// // ReadFrom reads an IP packet from dev, copying the payload into b.
+// // It returns the number of bytes copied and the IP header on the packet.
+// // ReadFrom can be made to time out and return an error after a fixed
+// // time limit; see IsTimeout, SetDeadline, and SetReadDeadline.
+// //
+// // If a packet whose payload is larger than len(b) is received, n will
+// // be len(b), and err will be io.EOF.
+// func (dev *EthernetDevice) Read(b []byte) (n int, err error) {
+// 	dev.mu.RLock()
+// 	defer dev.mu.RUnlock()
+// 	if !dev.isUp() {
+// 		return 0, errors.New("read from down device")
+// 	}
 //
-// If a packet whose payload is larger than len(b) is received, n will
-// be len(b), and err will be io.EOF.
-func (dev *EthernetDevice) ReadFrom(b []byte) (n int, hdr IPHeader, err error) {
+// 	return dev.readFrom(b, dev.ipv4, dev.ipv6)
+// }
+
+// ReadIPv4 is like Read, but for IPv4 only.
+func (dev *EthernetDevice) ReadIPv4(b []byte) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
-		return 0, nil, errors.New("read from down device")
+		return 0, errors.New("read from down device")
 	}
 
-	return dev.readFrom(b, dev.ipv4, dev.ipv6)
+	return dev.readFrom(b, dev.ipv4)
 }
 
-// ReadFromIPv4 is like ReadFrom, but for IPv4 only.
-func (dev *EthernetDevice) ReadFromIPv4(b []byte) (n int, hdr *IPv4Header, err error) {
+// ReadIPv6 is like Read, but for IPv6 only.
+func (dev *EthernetDevice) ReadIPv6(b []byte) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
-		return 0, nil, errors.New("read from down device")
+		return 0, errors.New("read from down device")
 	}
 
-	n, ihdr, err := dev.readFrom(b, dev.ipv4, nil)
-	if ihdr != nil {
-		hdr = ihdr.(*IPv4Header)
-	}
-	return n, hdr, err
-}
-
-// ReadFromIPv6 is like ReadFrom, but for IPv6 only.
-func (dev *EthernetDevice) ReadFromIPv6(b []byte) (n int, hdr *IPv6Header, err error) {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if !dev.isUp() {
-		return 0, nil, errors.New("read from down device")
-	}
-
-	n, ihdr, err := dev.readFrom(b, nil, dev.ipv6)
-	if ihdr != nil {
-		hdr = ihdr.(*IPv6Header)
-	}
-	return n, hdr, err
+	return dev.readFrom(b, dev.ipv6)
 }
 
 // if no deadline is set, return nil. Otherwise, return
@@ -375,82 +346,74 @@ func (dev *EthernetDevice) getReadDeadlineTimer() <-chan time.Time {
 	return c
 }
 
-// WriteTo writes an IP packet to the device with the specified header
-// and to the given destination address. The destination address is
-// resolved to a link-local address, and the resulting link-layer frame
-// is sent to that address. The destination address does not have to
-// match the desitnation address in the IP packet header.
-//
-// WriteTo can be made to time out and return an error after a fixed
-// time limit; see IsTimeout, SetDeadline, and SetWriteDeadline.
-//
-// If len(b) + hdr.EncodedLen() is larger than the device's MTU,
-// WriteTo will not write the packet, and will return an MTU error
-// (see IsMTU).
-func (dev *EthernetDevice) WriteTo(b []byte, hdr IPHeader, dst IP) (n int, err error) {
-	hdr4, hdrOK := hdr.(*IPv4Header)
-	dst4, dstOK := dst.(IPv4)
-	switch {
-	case hdrOK && dstOK:
-		return dev.WriteToIPv4(b, hdr4, dst4)
-	case !hdrOK && !dstOK:
-		return dev.WriteToIPv6(b, hdr.(*IPv6Header), dst.(IPv6))
-	case hdrOK && !dstOK:
-		return 0, errors.New("write to device: IPv4 header with IPv6 address")
-	default:
-		return 0, errors.New("write to device: IPv6 header with IPv4 address")
-	}
-}
+// // WriteTo writes an IP packet to the device with the specified header
+// // and to the given destination address. The destination address is
+// // resolved to a link-local address, and the resulting link-layer frame
+// // is sent to that address. The destination address does not have to
+// // match the desitnation address in the IP packet header.
+// //
+// // WriteTo can be made to time out and return an error after a fixed
+// // time limit; see IsTimeout, SetDeadline, and SetWriteDeadline.
+// //
+// // If len(b) + hdr.EncodedLen() is larger than the device's MTU,
+// // WriteTo will not write the packet, and will return an MTU error
+// // (see IsMTU).
+// func (dev *EthernetDevice) WriteTo(b []byte, dst IP) (n int, err error) {
+// 	switch dst := dst.(type) {
+// 	case IPv4:
+// 		return dev.WriteToIPv4(b, dst)
+// 	case IPv6:
+// 		return dev.WriteToIPv6(b, dst)
+// 	default:
+// 		panic("unreachable")
+// 	}
+// }
 
 // WriteToIPv4 is like WriteTo, but for IPv4 only.
-func (dev *EthernetDevice) WriteToIPv4(b []byte, hdr *IPv4Header, dst IPv4) (n int, err error) {
+func (dev *EthernetDevice) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
 		return 0, errors.New("write to down device")
 	}
 
-	buf := encodeHeaderAndBody(b, hdr, ethernetHeaderLen)
+	buf := getByteSlice(ethernetHeaderLen + len(b))
+	copy(buf[ethernetHeaderLen:], b)
 	mac, err := dev.arp.LookupIPv4(dst)
 	if err != nil {
 		return 0, errors.Annotate(err, "write to device")
 	}
-
-	n, err = dev.iface.WriteFrame(buf, mac, EtherTypeIPv4)
-	hdrlen := ethernetHeaderLen + hdr.EncodedLen()
-	if n < hdrlen {
-		n = 0
-	} else {
-		n -= hdrlen
-	}
-	return n, errors.Annotate(err, "write to device")
+	return dev.writeTo(buf, mac)
 }
 
 // WriteToIPv6 is like WriteTo, but for IPv6 only.
-func (dev *EthernetDevice) WriteToIPv6(b []byte, hdr *IPv6Header, dst IPv6) (n int, err error) {
+func (dev *EthernetDevice) WriteToIPv6(b []byte, dst IPv6) (n int, err error) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if !dev.isUp() {
 		return 0, errors.New("write to down device")
 	}
 
-	buf := encodeHeaderAndBody(b, hdr, ethernetHeaderLen)
+	buf := getByteSlice(ethernetHeaderLen + len(b))
+	copy(buf[ethernetHeaderLen:], b)
+	// TODO(joshlf): Fix this; we don't use ARP for IPv6
 	mac, err := dev.arp.LookupIPv6(dst)
 	if err != nil {
 		return 0, errors.Annotate(err, "write to device")
 	}
+	return dev.writeTo(buf, mac)
+}
 
-	n, err = dev.iface.WriteFrame(buf, mac, EtherTypeIPv6)
-	hdrlen := ethernetHeaderLen + hdr.EncodedLen()
-	if n < hdrlen {
+// writeTo implements logic common to WriteToIPv4 and WriteToIPv6;
+// it writes to the given MAC address and returns the correct values
+func (dev *EthernetDevice) writeTo(b []byte, mac MAC) (n int, err error) {
+	n, err = dev.iface.WriteFrame(b, mac, EtherTypeIPv4)
+	if n < ethernetHeaderLen {
 		n = 0
 	} else {
-		n -= hdrlen
+		n -= ethernetHeaderLen
 	}
-	if err != nil {
-		return n, errors.Annotate(err, "write to device")
-	}
-	return n, nil
+	return n, errors.Annotate(err, "write to device")
 }
 
 // SetReadDeadline sets the deadline for future calls to ReadFrom,
@@ -495,13 +458,13 @@ func (dev *EthernetDevice) SetDeadline(t time.Time) error {
 	return dev.SetWriteDeadline(t)
 }
 
-// encodeHeaderAndBody encodes an IP packet with the payload
-// b and the header hdr. The returned byte slice includes
-// any extra space that is specified.
-func encodeHeaderAndBody(b []byte, hdr IPHeader, extra int) []byte {
-	hdrlen := hdr.EncodedLen()
-	buf := getByteSlice(extra + hdrlen + len(b))
-	hdr.Marshal(buf[extra:])
-	copy(buf[extra+hdrlen:], b)
-	return b
-}
+// // encodeHeaderAndBody encodes an IP packet with the payload
+// // b and the header hdr. The returned byte slice includes
+// // any extra space that is specified.
+// func encodeHeaderAndBody(b []byte, hdr IPHeader, extra int) []byte {
+// 	hdrlen := hdr.EncodedLen()
+// 	buf := getByteSlice(extra + hdrlen + len(b))
+// 	hdr.Marshal(buf[extra:])
+// 	copy(buf[extra+hdrlen:], b)
+// 	return b
+// }
