@@ -45,6 +45,18 @@ func (r *routingTable) AddRoute(subnet IPSubnet, nexthop IP) {
 	r.routes = append(r.routes, routingTableIPRoute{subnet: subnet, nexthop: nexthop})
 }
 
+func (r *routingTable) DeleteRoute(subnet IPSubnet) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, rr := range r.routes {
+		if SubnetEqual(rr.subnet, subnet) {
+			copy(r.routes[i:], r.routes[i+1:])
+			r.routes = r.routes[:len(r.routes)-1]
+			return
+		}
+	}
+}
+
 func (r *routingTable) AddDeviceRoute(subnet IPSubnet, dev *namedDevice) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -58,6 +70,18 @@ func (r *routingTable) AddDeviceRoute(subnet IPSubnet, dev *namedDevice) {
 		subnet: subnet,
 		device: dev,
 	})
+}
+
+func (r *routingTable) DeleteDeviceRoute(subnet IPSubnet) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, rr := range r.deviceRoutes {
+		if SubnetEqual(rr.subnet, subnet) {
+			copy(r.deviceRoutes[i:], r.deviceRoutes[i+1:])
+			r.deviceRoutes = r.deviceRoutes[:len(r.deviceRoutes)-1]
+			return
+		}
+	}
 }
 
 func (r *routingTable) Lookup(addr IP) *namedDevice {
