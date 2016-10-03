@@ -52,7 +52,7 @@ type Device interface {
 	// // WriteTo will not write the packet, and will
 	// // return an MTU error (see IsMTU).
 	// WriteTo(b []byte, dst IP) (n int, err error)
-	Deadliner
+	// Deadliner
 }
 
 // An IPv4Device is a Device with IPv4-specific methods.
@@ -70,9 +70,11 @@ type IPv4Device interface {
 	// the IPv4 address.
 	SetIPv4(addr, netmask IPv4) error
 
-	// ReadIPv4 is like Device's Read,
-	// but for IPv4 only.
-	ReadIPv4(b []byte) (n int, err error)
+	// RegisterIPv4Callback registers f as the function
+	// to be called when a new IPv4 packet arrives. It
+	// overwrites any previously-registered callbacks.
+	// If f is nil, incoming IPv4 packets will be dropped.
+	RegisterIPv4Callback(f func([]byte))
 	// WriteToIPv4 is like Device's WriteTo,
 	// but for IPv4 only.
 	WriteToIPv4(b []byte, dst IPv4) (n int, err error)
@@ -93,9 +95,11 @@ type IPv6Device interface {
 	// the IPv6 address.
 	SetIPv6(addr, netmask IPv6) error
 
-	// ReadIPv6 is like Device's Read,
-	// but for IPv6 only.
-	ReadIPv6(b []byte) (n int, err error)
+	// RegisterIPv6Callback registers f as the function
+	// to be called when a new IPv4 packet arrives. It
+	// overwrites any previously-registered callbacks.
+	// If f is nil, incoming IPv4 packets will be dropped.
+	RegisterIPv6Callback(f func([]byte))
 	// WriteToIPv6 is like Device's WriteTo,
 	// but for IPv6 only.
 	WriteToIPv6(b []byte, dst IPv6) (n int, err error)

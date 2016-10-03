@@ -57,3 +57,21 @@ func IsTimeout(err error) bool {
 	te, ok := errors.Cause(err).(timeout)
 	return ok && te.Timeout()
 }
+
+type noRoute struct {
+	host string
+}
+
+func (n noRoute) Error() string {
+	if n.host == "" {
+		return "no route to host"
+	}
+	return n.host + ": no route to host"
+}
+
+// IsNoRoute returns true if err is related to there being
+// no route to a particular network host.
+func IsNoRoute(err error) {
+	_, ok := errors.Cause(err).(noRoute)
+	return ok
+}

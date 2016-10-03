@@ -1,14 +1,25 @@
 package net
 
+import "fmt"
+
 // IPv4 is an IPv4 address
 type IPv4 [4]byte
 
 func (IPv4) isIP() {}
 
+func (i IPv4) String() string {
+	return fmt.Sprintf("%d.%d.%d.%d", i[0], i[1], i[2], i[3])
+}
+
 // IPv6 is an IPv6 address
 type IPv6 [16]byte
 
 func (IPv6) isIP() {}
+
+func (i IPv6) String() string {
+	panic("not implemented")
+	// TODO(joshlf): see Go's implementation
+}
 
 // IP is an IPv4 or IPv6 address. It is only implemented by IPv4 and IPv6.
 type IP interface {
