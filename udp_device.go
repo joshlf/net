@@ -32,7 +32,10 @@ var _ Device = &UDPIPv4Device{}
 // a single MTU-sized buffer will be allocated in order to read incoming packets,
 // so an overly-large MTU will result in significant memory waste.
 func NewUDPIPv4Device(laddr, raddr *net.UDPAddr, mtu int) (dev *UDPIPv4Device, err error) {
-	return &UDPIPv4Device{laddr: laddr, raddr: raddr}, nil
+	if mtu == 0 {
+		return nil, errors.New("new UDPIPv4Device: zero MTU")
+	}
+	return &UDPIPv4Device{laddr: laddr, raddr: raddr, mtu: mtu}, nil
 }
 
 // IPv4 returns dev's IPv4 address and network mask if they have been set.
@@ -104,6 +107,12 @@ func (dev *UDPIPv4Device) isUp() bool {
 
 func (dev *UDPIPv4Device) MTU() int { return dev.mtu }
 
+func (dev *UDPIPv4Device) RegisterIPv4Callback(f func(b []byte)) {
+	dev.sync.RLock()
+	dev.callback = f
+	dev.sync.RUnlock()
+}
+
 // WriteToIPv4 is like Device's WriteTo, but for IPv4 only.
 func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 	if len(b) > dev.mtu {
@@ -136,6 +145,11 @@ func (dev *UDPIPv4Device) readDaemon() {
 			continue
 		}
 		_, err = dev.conn.Read(b)
+		// TODO(joshlf): Read doesn't seem to return an error if there's
+		// a partial read, so we can't tell whether there was more data
+		// (that is, whether the other side sent a larger frame than the
+		// MTU allows). Maybe we need to define a simple header format
+		// to carry explicit frame length information?
 		if err != nil {
 			if !IsTimeout(err) {
 				// TODO(joshlf): Log it

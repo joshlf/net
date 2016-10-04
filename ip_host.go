@@ -43,6 +43,18 @@ func (host *IPv4Host) AddDevice(dev IPv4Device) {
 	host.devices = append(host.devices, dev)
 }
 
+func (host *IPv4Host) AddRoute(subnet IPSubnet, nexthop IP) {
+	host.mu.Lock()
+	host.table.AddRoute(subnet, nexthop)
+	host.mu.Unlock()
+}
+
+func (host *IPv4Host) AddDeviceRoute(subnet IPSubnet, dev IPv4Device) {
+	host.mu.Lock()
+	host.table.AddDeviceRoute(subnet, dev)
+	host.mu.Unlock()
+}
+
 // SetForwarding turns forwarding on or off for host. If forwarding is on,
 // received IP packets which are not destined for this host will be forwarded
 // to the appropriate next hop if possible.
@@ -61,25 +73,25 @@ func (host *IPv4Host) RegisterCallback(f func(b []byte, src, dst IPv4), proto IP
 	host.mu.Unlock()
 }
 
-func (host *IPv4Host) WriteTo(b []byte, addr IPv4, proto IPv4Protocol) error {
+func (host *IPv4Host) WriteTo(b []byte, addr IPv4, proto IPv4Protocol) (n int, err error) {
 	return host.WriteToTTL(b, addr, proto, defaultIPv4TTL)
 }
 
-func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPv4Protocol, ttl uint8) error {
+func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPv4Protocol, ttl uint8) (n int, err error) {
 	host.mu.RLock()
 	defer host.mu.RUnlock()
 	nexthop, dev := host.table.Lookup(addr)
 	if nexthop == nil {
-		return noRoute{addr.String()}
+		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv4 packet")
 	}
 	ok, devaddr, _ := dev.(IPv4Device).IPv4()
 	if !ok {
-		return errors.New("device has no IPv4 address")
+		return 0, errors.New("device has no IPv4 address")
 	}
 
 	if len(b) > math.MaxUint16-20 {
 		// MTU errors are only for link-layer payloads
-		return errors.New("IPv4 payload exceeds maximum IPv4 packet size")
+		return 0, errors.New("IPv4 payload exceeds maximum IPv4 packet size")
 	}
 	var hdr ipv4Header
 	hdr.version = 4
@@ -94,8 +106,13 @@ func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPv4Protocol, ttl ui
 	writeIPv4Header(&hdr, buf)
 	copy(buf[20:], b)
 
-	_, err := dev.(IPv4Device).WriteToIPv4(buf, nexthop.(IPv4))
-	return errors.Annotate(err, "write IPv4 packet")
+	n, err = dev.(IPv4Device).WriteToIPv4(buf, nexthop.(IPv4))
+	if n < 20 {
+		n = 0
+	} else {
+		n -= 20
+	}
+	return n, errors.Annotate(err, "write IPv4 packet")
 }
 
 func (host *IPv4Host) callback(dev IPv4Device, b []byte) {
