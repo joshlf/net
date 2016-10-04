@@ -21,13 +21,83 @@ const (
 
 type IPv4Host struct {
 	table     routingTable
-	devices   []namedDevice
+	devices   []IPv4Device
 	callbacks [256]func(b []byte, src, dst IPv4)
+	forward   bool
 
 	mu sync.RWMutex
 }
 
-func (host *IPv4Host) callback(dev *namedDevice, b []byte) {
+// AddDevice adds dev, allowing host to send and receive IP packets
+// over the device. If dev has already been registered, AddDevice is
+// a no-op.
+func (host *IPv4Host) AddDevice(dev IPv4Device) {
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	for _, d := range host.devices {
+		if d == dev {
+			return
+		}
+	}
+	dev.RegisterIPv4Callback(func(b []byte) { host.callback(dev, b) })
+	host.devices = append(host.devices, dev)
+}
+
+// SetForwarding turns forwarding on or off for host. If forwarding is on,
+// received IP packets which are not destined for this host will be forwarded
+// to the appropriate next hop if possible.
+func (host *IPv4Host) SetForwarding(on bool) {
+	host.mu.Lock()
+	host.forward = on
+	host.mu.Unlock()
+}
+
+// RegisterCallback registers f to be called whenever an IP packet of the given
+// protocol is received. It overwrites any previously-registered callbacks.
+// If f is nil, any previously-registered callbacks are cleared.
+func (host *IPv4Host) RegisterCallback(f func(b []byte, src, dst IPv4), proto IPv4Protocol) {
+	host.mu.Lock()
+	host.callbacks[int(proto)] = f
+	host.mu.Unlock()
+}
+
+func (host *IPv4Host) WriteTo(b []byte, addr IPv4, proto IPv4Protocol) error {
+	return host.WriteToTTL(b, addr, proto, defaultIPv4TTL)
+}
+
+func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPv4Protocol, ttl uint8) error {
+	host.mu.RLock()
+	defer host.mu.RUnlock()
+	nexthop, dev := host.table.Lookup(addr)
+	if nexthop == nil {
+		return noRoute{addr.String()}
+	}
+	ok, devaddr, _ := dev.(IPv4Device).IPv4()
+	if !ok {
+		return errors.New("device has no IPv4 address")
+	}
+
+	if len(b) > math.MaxUint16-20 {
+		return mtuErr("IPv4 payload exceeds maximum size")
+	}
+	var hdr ipv4Header
+	hdr.version = 4
+	hdr.IHL = 5
+	hdr.len = 20 + uint16(len(b))
+	hdr.TTL = ttl
+	hdr.proto = uint8(proto)
+	hdr.src = devaddr
+	hdr.dst = addr
+
+	buf := make([]byte, int(hdr.len))
+	writeIPv4Header(&hdr, buf)
+	copy(buf[20:], b)
+
+	_, err := dev.(IPv4Device).WriteToIPv4(buf, nexthop.(IPv4))
+	return errors.Annotate(err, "write IPv4 packet")
+}
+
+func (host *IPv4Host) callback(dev IPv4Device, b []byte) {
 	// We accept the device as an argument
 	// because we may use it in the future,
 	// for example for a NAT server to tell
@@ -43,7 +113,7 @@ func (host *IPv4Host) callback(dev *namedDevice, b []byte) {
 	defer host.mu.RUnlock()
 	var us bool
 	for _, dev := range host.devices {
-		ok, addr, _ := dev.dev.(IPv4Device).IPv4()
+		ok, addr, _ := dev.IPv4()
 		if ok && addr == hdr.dst {
 			us = true
 			break
@@ -57,7 +127,7 @@ func (host *IPv4Host) callback(dev *namedDevice, b []byte) {
 			return
 		}
 		c(b[20:], hdr.src, hdr.dst)
-	} else {
+	} else if host.forward {
 		// forward
 		if hdr.TTL < 2 {
 			// TTL is or would become 0 after decrement
@@ -71,41 +141,9 @@ func (host *IPv4Host) callback(dev *namedDevice, b []byte) {
 			// TODO(joshlf): ICMP reply
 			return
 		}
-		dev.dev.(IPv4Device).WriteToIPv4(b, nexthop.(IPv4))
+		dev.(IPv4Device).WriteToIPv4(b, nexthop.(IPv4))
 		// TODO(joshlf): Log error
 	}
-}
-
-func (host *IPv4Host) WriteTo(b []byte, addr IPv4, proto IPv4Protocol) error {
-	host.mu.RLock()
-	defer host.mu.RUnlock()
-	nexthop, dev := host.table.Lookup(addr)
-	if nexthop == nil {
-		return noRoute{addr.String()}
-	}
-	ok, devaddr, _ := dev.dev.(IPv4Device).IPv4()
-	if !ok {
-		return errors.New("device has no IPv4 address")
-	}
-
-	if len(b) > math.MaxUint16-20 {
-		return mtuErr("IPv4 payload exceeds maximum size")
-	}
-	var hdr ipv4Header
-	hdr.version = 4
-	hdr.IHL = 5
-	hdr.len = 20 + uint16(len(b))
-	hdr.TTL = defaultIPv4TTL
-	hdr.proto = uint8(proto)
-	hdr.src = devaddr
-	hdr.dst = addr
-
-	buf := make([]byte, int(hdr.len))
-	writeIPv4Header(&hdr, buf)
-	copy(buf[20:], b)
-
-	_, err := dev.dev.(IPv4Device).WriteToIPv4(buf, nexthop.(IPv4))
-	return errors.Annotate(err, "write IPv4 packet")
 }
 
 // TODO(joshlf):

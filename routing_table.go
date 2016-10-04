@@ -9,10 +9,10 @@ import "sync"
 // a single subnet, but we also allow multiple subnets that are "unequal"
 // because one is a subset of the other.
 
-type namedDevice struct {
-	name string
-	dev  Device
-}
+// type namedDevice struct {
+// 	name string
+// 	dev  Device
+// }
 
 // routingTable is generic so that it can work with either IPv4 or IPv6,
 // but any given instance should only be used with one of the two versions,
@@ -30,7 +30,7 @@ type routingTableIPRoute struct {
 
 type routingTableDeviceRoute struct {
 	subnet IPSubnet
-	device *namedDevice
+	device Device
 }
 
 func (r *routingTable) AddRoute(subnet IPSubnet, nexthop IP) {
@@ -57,7 +57,7 @@ func (r *routingTable) DeleteRoute(subnet IPSubnet) {
 	}
 }
 
-func (r *routingTable) AddDeviceRoute(subnet IPSubnet, dev *namedDevice) {
+func (r *routingTable) AddDeviceRoute(subnet IPSubnet, dev Device) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for i, rr := range r.deviceRoutes {
@@ -84,7 +84,7 @@ func (r *routingTable) DeleteDeviceRoute(subnet IPSubnet) {
 	}
 }
 
-func (r *routingTable) Lookup(addr IP) (nexthop IP, dev *namedDevice) {
+func (r *routingTable) Lookup(addr IP) (nexthop IP, dev Device) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	dev = r.lookupDeviceRoute(addr)
@@ -103,7 +103,7 @@ func (r *routingTable) Lookup(addr IP) (nexthop IP, dev *namedDevice) {
 	return nil, nil
 }
 
-func (r *routingTable) lookupDeviceRoute(addr IP) *namedDevice {
+func (r *routingTable) lookupDeviceRoute(addr IP) Device {
 	for _, r := range r.deviceRoutes {
 		if SubnetHas(r.subnet, addr) {
 			return r.device
