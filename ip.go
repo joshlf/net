@@ -115,7 +115,7 @@ func SubnetEqual(a, b IPSubnet) bool {
 	case aOK && bOK:
 		return a4.Equal(b4)
 	case !aOK && !bOK:
-		a.(IPv6Subnet).Equal(b.(IPv6Subnet))
+		return a.(IPv6Subnet).Equal(b.(IPv6Subnet))
 	default:
 		return false
 	}

@@ -78,7 +78,8 @@ func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPv4Protocol, ttl ui
 	}
 
 	if len(b) > math.MaxUint16-20 {
-		return mtuErr("IPv4 payload exceeds maximum size")
+		// MTU errors are only for link-layer payloads
+		return errors.New("IPv4 payload exceeds maximum IPv4 packet size")
 	}
 	var hdr ipv4Header
 	hdr.version = 4

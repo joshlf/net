@@ -28,7 +28,7 @@ type Device interface {
 
 	// MTU returns the device's maximum transmission unit,
 	// or 0 if no MTU is set.
-	MTU() uint64
+	MTU() int
 
 	// // Read reads a packet from the device,
 	// // copying the payload into b. It returns the

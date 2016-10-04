@@ -28,7 +28,7 @@ type EthernetInterface interface {
 	SetMAC(mac MAC) error
 
 	// MTU returns the interface's MTU. If no MTU is set, MTU will return 0.
-	MTU() uint64
+	MTU() int
 	// SetMTU sets the interface's MTU. It is an error to set
 	// an MTU of 0 or to call SetMTU while the interface is up.
 	SetMTU(mtu uint64) error
@@ -304,7 +304,7 @@ func (dev *EthernetDevice) isUp() bool {
 }
 
 // MTU returns dev's maximum transmission unit, or 0 if no MTU is set.
-func (dev *EthernetDevice) MTU() uint64 {
+func (dev *EthernetDevice) MTU() int {
 	dev.mu.RLock()
 	mtu := dev.iface.MTU()
 	dev.mu.RUnlock()

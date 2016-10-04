@@ -2,7 +2,6 @@ package net
 
 import (
 	"net"
-	"sync"
 	"time"
 
 	"github.com/juju/errors"
@@ -17,23 +16,29 @@ import (
 // for concurrent access.
 type UDPIPv4Device struct {
 	laddr, raddr  *net.UDPAddr
-	conn          *net.UDPConn // nil if down
-	addr, netmask IPv4         // unset if zero value
+	conn          *net.UDPConn // down if nil
+	mtu           int
+	addr, netmask IPv4           // unset if zero value
+	callback      func(b []byte) // unset if nil
 
-	mu sync.RWMutex
+	sync syncer
 }
 
 var _ Device = &UDPIPv4Device{}
 
 // NewUDPIPv4Device creates a new UDPDevice, which is down by default.
-func NewUDPIPv4Device(laddr, raddr *net.UDPAddr) (dev *UDPIPv4Device, err error) {
+// It is the caller's responsibility to ensure that both sides of the connection
+// are configured with the same MTU, which must be non-zero. Keep in mind that
+// a single MTU-sized buffer will be allocated in order to read incoming packets,
+// so an overly-large MTU will result in significant memory waste.
+func NewUDPIPv4Device(laddr, raddr *net.UDPAddr, mtu int) (dev *UDPIPv4Device, err error) {
 	return &UDPIPv4Device{laddr: laddr, raddr: raddr}, nil
 }
 
 // IPv4 returns dev's IPv4 address and network mask if they have been set.
 func (dev *UDPIPv4Device) IPv4() (ok bool, addr, netmask IPv4) {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
+	dev.sync.RLock()
+	defer dev.sync.RUnlock()
 	if dev.addr == (IPv4{}) {
 		return false, addr, netmask
 	}
@@ -45,8 +50,8 @@ func (dev *UDPIPv4Device) IPv4() (ok bool, addr, netmask IPv4) {
 //
 // Calling SetIPv4 with the zero value for addr unsets the IPv4 address.
 func (dev *UDPIPv4Device) SetIPv4(addr, netmask IPv4) error {
-	dev.mu.Lock()
-	defer dev.mu.Unlock()
+	dev.sync.Lock()
+	defer dev.sync.Unlock()
 	if dev.isUp() {
 		return errors.New("set device IP address on up device")
 	}
@@ -56,8 +61,8 @@ func (dev *UDPIPv4Device) SetIPv4(addr, netmask IPv4) error {
 
 // BringUp brings dev up. If it is already up, BringUp is a no-op.
 func (dev *UDPIPv4Device) BringUp() error {
-	dev.mu.Lock()
-	defer dev.mu.Unlock()
+	dev.sync.Lock()
+	defer dev.sync.Unlock()
 	if dev.isUp() {
 		return nil
 	}
@@ -67,17 +72,19 @@ func (dev *UDPIPv4Device) BringUp() error {
 		return errors.Annotate(err, "bring device up")
 	}
 	dev.conn = conn
+	dev.sync.SpawnDaemon(dev.readDaemon)
 	return nil
 }
 
 // BringDown brings dev down. If it is already down, BringDown is a no-op.
 func (dev *UDPIPv4Device) BringDown() error {
-	dev.mu.Lock()
-	defer dev.mu.Unlock()
+	dev.sync.Lock()
+	defer dev.sync.Unlock()
 	if !dev.isUp() {
 		return nil
 	}
 
+	dev.sync.StopDaemons()
 	err := dev.conn.Close()
 	dev.conn = nil
 	return errors.Annotate(err, "bring device down")
@@ -85,9 +92,9 @@ func (dev *UDPIPv4Device) BringDown() error {
 
 // IsUp returns true if dev is up.
 func (dev *UDPIPv4Device) IsUp() bool {
-	dev.mu.RLock()
+	dev.sync.RLock()
 	up := dev.isUp()
-	dev.mu.RUnlock()
+	dev.sync.RUnlock()
 	return up
 }
 
@@ -95,24 +102,15 @@ func (dev *UDPIPv4Device) isUp() bool {
 	return dev.conn != nil
 }
 
-// MTU returns 0; UDPIPv4Devices do not support MTUs.
-func (dev *UDPIPv4Device) MTU() uint64 { return 0 }
-
-func (dev *UDPIPv4Device) ReadIPv4(b []byte) (n int, err error) {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if !dev.isUp() {
-		return 0, errors.New("read from to down device")
-	}
-
-	n, err = dev.conn.Read(b)
-	return n, errors.Annotate(err, "read from device")
-}
+func (dev *UDPIPv4Device) MTU() int { return dev.mtu }
 
 // WriteToIPv4 is like Device's WriteTo, but for IPv4 only.
 func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
+	if len(b) > dev.mtu {
+		return 0, mtuErr("write to device: IPv4 payload exceeds MTU")
+	}
+	dev.sync.RLock()
+	defer dev.sync.RUnlock()
 	if !dev.isUp() {
 		return 0, errors.New("write to down device")
 	}
@@ -121,29 +119,31 @@ func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 	return n, errors.Annotate(err, "write to device")
 }
 
-func (dev *UDPIPv4Device) SetReadDeadline(t time.Time) error {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if !dev.isUp() {
-		return errors.New("set read deadline on down device")
-	}
-	return dev.conn.SetReadDeadline(t)
-}
+func (dev *UDPIPv4Device) readDaemon() {
+	b := make([]byte, dev.mtu)
+	for {
+		select {
+		case <-dev.sync.StopChan():
+			return
+		default:
+		}
 
-func (dev *UDPIPv4Device) SetWriteDeadline(t time.Time) error {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if !dev.isUp() {
-		return errors.New("set write deadline on down device")
+		dev.sync.RLock()
+		err := dev.conn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
+		if err != nil {
+			// TODO(joshlf): Log it
+			dev.sync.RUnlock()
+			continue
+		}
+		_, err = dev.conn.Read(b)
+		if err != nil {
+			if !IsTimeout(err) {
+				// TODO(joshlf): Log it
+			}
+			dev.sync.RUnlock()
+			continue
+		}
+		dev.callback(b)
+		dev.sync.RUnlock()
 	}
-	return dev.conn.SetWriteDeadline(t)
-}
-
-func (dev *UDPIPv4Device) SetDeadline(t time.Time) error {
-	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if !dev.isUp() {
-		return errors.New("set deadline on down device")
-	}
-	return dev.conn.SetDeadline(t)
 }

@@ -71,7 +71,7 @@ func (n noRoute) Error() string {
 
 // IsNoRoute returns true if err is related to there being
 // no route to a particular network host.
-func IsNoRoute(err error) {
+func IsNoRoute(err error) bool {
 	_, ok := errors.Cause(err).(noRoute)
 	return ok
 }
