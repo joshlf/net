@@ -21,7 +21,7 @@ const (
 
 type IPv4Host struct {
 	table     routingTable
-	devices   []IPv4Device
+	devices   map[IPv4Device]bool // make sure to check if nil before modifying
 	callbacks [256]func(b []byte, src, dst IPv4)
 	forward   bool
 
@@ -29,18 +29,31 @@ type IPv4Host struct {
 }
 
 // AddDevice adds dev, allowing host to send and receive IP packets
-// over the device. If dev has already been registered, AddDevice is
-// a no-op.
+// over the device. Afer calling AddDevice, the caller must not interact
+// with the device, except for through host, or until a subsequent
+// call to RemoveDevice.  If dev has already been registered, AddDevice
+// is a no-op.
 func (host *IPv4Host) AddDevice(dev IPv4Device) {
 	host.mu.Lock()
 	defer host.mu.Unlock()
-	for _, d := range host.devices {
-		if d == dev {
-			return
-		}
-	}
 	dev.RegisterIPv4Callback(func(b []byte) { host.callback(dev, b) })
-	host.devices = append(host.devices, dev)
+	if host.devices == nil {
+		host.devices = make(map[IPv4Device]bool)
+	}
+	host.devices[dev] = true
+}
+
+// RemoveDevice removes dev from the host. After calling RemoveDevice,
+// the caller may safely interact with the device directly. If no
+// such device is currently registered, RemoveDevice is a no-op.
+func (host *IPv4Host) RemoveDevice(dev IPv4Device) {
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	if !host.devices[dev] {
+		return
+	}
+	dev.RegisterIPv4Callback(nil)
+	delete(host.devices, dev)
 }
 
 func (host *IPv4Host) AddRoute(subnet IPSubnet, nexthop IP) {
@@ -130,7 +143,7 @@ func (host *IPv4Host) callback(dev IPv4Device, b []byte) {
 	host.mu.RLock()
 	defer host.mu.RUnlock()
 	var us bool
-	for _, dev := range host.devices {
+	for dev := range host.devices {
 		ok, addr, _ := dev.IPv4()
 		if ok && addr == hdr.dst {
 			us = true

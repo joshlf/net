@@ -163,8 +163,8 @@ func ParseIP(s string) (IP, error) {
 	ip := net.ParseIP(s)
 	switch {
 	case ip == nil:
-		return nil, errors.Errorf("parse IP: %v", s)
-	case ip.To16() == nil:
+		return nil, errors.Errorf("malformed IP: %v", s)
+	case ip.To4() != nil:
 		var ipv4 IPv4
 		copy(ipv4[:], ip.To4())
 		return ipv4, nil
@@ -213,7 +213,7 @@ func ParseCIDR(s string) (IP, IPSubnet, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if ip.To16() == nil {
+	if ip.To4() != nil {
 		var ipv4 IPv4
 		var ipnet4 IPv4Subnet
 		copy(ipv4[:], ip.To4())
