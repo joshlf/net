@@ -1,11 +1,19 @@
 package net
 
-import "fmt"
+import (
+	"fmt"
+	"net"
+
+	"github.com/juju/errors"
+)
 
 // IPv4 is an IPv4 address
 type IPv4 [4]byte
 
 func (IPv4) isIP() {}
+
+// IPVersion returns i's IP version - 4.
+func (i IPv4) IPVersion() int { return 4 }
 
 func (i IPv4) String() string {
 	return fmt.Sprintf("%d.%d.%d.%d", i[0], i[1], i[2], i[3])
@@ -16,6 +24,9 @@ type IPv6 [16]byte
 
 func (IPv6) isIP() {}
 
+// IPVersion returns i's IP version - 6.
+func (i IPv6) IPVersion() int { return 6 }
+
 func (i IPv6) String() string {
 	panic("not implemented")
 	// TODO(joshlf): see Go's implementation
@@ -23,6 +34,8 @@ func (i IPv6) String() string {
 
 // IP is an IPv4 or IPv6 address. It is only implemented by IPv4 and IPv6.
 type IP interface {
+	// IPVersion is the IP's version - 4 or 6.
+	IPVersion() int
 	isIP()
 }
 
@@ -36,6 +49,9 @@ type IPv4Subnet struct {
 }
 
 func (IPv4Subnet) isIPSubnet() {}
+
+// IPVersion returns sub's IP version - 4.
+func (sub IPv4Subnet) IPVersion() int { return 4 }
 
 // Equal determines whether sub is equal to other.
 func (sub IPv4Subnet) Equal(other IPv4Subnet) bool {
@@ -74,6 +90,9 @@ type IPv6Subnet struct {
 
 func (IPv6Subnet) isIPSubnet() {}
 
+// IPVersion returns sub's IP version - 6.
+func (sub IPv6Subnet) IPVersion() int { return 6 }
+
 // Equal determines whether sub is equal to other.
 func (sub IPv6Subnet) Equal(other IPv6Subnet) bool {
 	if sub.Netmask != other.Netmask {
@@ -103,6 +122,8 @@ func (sub IPv6Subnet) Has(addr IPv6) bool {
 // IPSubnet is an IPv4 or IPv6 subnet. It is only implemented by IPv4Subnet and
 // IPv6Subnet.
 type IPSubnet interface {
+	// IPVersion returns the subnet's IP version - 4 or 6.
+	IPVersion() int
 	isIPSubnet()
 }
 
@@ -134,6 +155,104 @@ func SubnetHas(sub IPSubnet, addr IP) bool {
 	default:
 		return false
 	}
+}
+
+// ParseIP parses s as an IP address, returning the result. The string s
+// can be in dotted decimal ("192.0.2.1") or IPv6 ("2001:db8::68") form.
+func ParseIP(s string) (IP, error) {
+	ip := net.ParseIP(s)
+	switch {
+	case ip == nil:
+		return nil, errors.Errorf("parse IP: %v", s)
+	case ip.To16() == nil:
+		var ipv4 IPv4
+		copy(ipv4[:], ip.To4())
+		return ipv4, nil
+	default:
+		var ipv6 IPv6
+		copy(ipv6[:], ip.To16())
+		return ipv6, nil
+	}
+}
+
+// ParseIPv4 is like ParseIP, but for IPv4 addresses only.
+func ParseIPv4(s string) (IPv4, error) {
+	ip, err := ParseIP(s)
+	switch {
+	case err != nil:
+		return IPv4{}, err
+	case ip.IPVersion() == 6:
+		return IPv4{}, errors.New("parse IPv4: argument is IPv6 address")
+	default:
+		return ip.(IPv4), nil
+	}
+}
+
+// ParseIPv6 is like ParseIP, but for IPv6 addresses only.
+func ParseIPv6(s string) (IPv6, error) {
+	ip, err := ParseIP(s)
+	switch {
+	case err != nil:
+		return IPv6{}, err
+	case ip.IPVersion() == 4:
+		return IPv6{}, errors.New("parse IPv6: argument is IPv4 address")
+	default:
+		return ip.(IPv6), nil
+	}
+}
+
+// ParseCIDR parses s as a CIDR notation IP address and mask,
+// like "192.0.2.0/24" or "2001:db8::/32", as defined in
+// RFC 4632 and RFC 4291.
+//
+// It returns the IP address and the network implied by the IP
+// and mask. For example, ParseCIDR("198.51.100.1/24") returns
+// the IP address 198.51.100.1 and the network 198.51.100.0/24.
+func ParseCIDR(s string) (IP, IPSubnet, error) {
+	ip, ipnet, err := net.ParseCIDR(s)
+	if err != nil {
+		return nil, nil, err
+	}
+	if ip.To16() == nil {
+		var ipv4 IPv4
+		var ipnet4 IPv4Subnet
+		copy(ipv4[:], ip.To4())
+		copy(ipnet4.Addr[:], ipnet.IP.To4())
+		copy(ipnet4.Netmask[:], ipnet.Mask)
+		return ipv4, ipnet4, nil
+	}
+	var ipv6 IPv6
+	var ipnet6 IPv6Subnet
+	copy(ipv6[:], ip.To16())
+	copy(ipnet6.Addr[:], ipnet.IP.To16())
+	copy(ipnet6.Netmask[:], ipnet.Mask)
+	return ipv6, ipnet6, nil
+}
+
+// ParseCIDRIPv4 is like ParseCIDR, but for IPv4 addresses only.
+func ParseCIDRIPv4(s string) (IPv4, IPv4Subnet, error) {
+	ip, ipnet, err := ParseCIDR(s)
+	if err != nil {
+		return IPv4{}, IPv4Subnet{}, err
+	}
+	ipv4, ok := ip.(IPv4)
+	if ok {
+		return ipv4, ipnet.(IPv4Subnet), nil
+	}
+	return IPv4{}, IPv4Subnet{}, errors.New("parse IPv4 CIDR: argument is IPv6 subnet")
+}
+
+// ParseCIDRIPv6 is like ParseCIDR, but for IPv6 addresses only.
+func ParseCIDRIPv6(s string) (IPv6, IPv6Subnet, error) {
+	ip, ipnet, err := ParseCIDR(s)
+	if err != nil {
+		return IPv6{}, IPv6Subnet{}, err
+	}
+	ipv6, ok := ip.(IPv6)
+	if ok {
+		return ipv6, ipnet.(IPv6Subnet), nil
+	}
+	return IPv6{}, IPv6Subnet{}, errors.New("parse IPv6 CIDR: argument is IPv4 subnet")
 }
 
 // // InSubnet returns true if addr is in the subnet defined by subnet and netmask.
