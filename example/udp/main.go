@@ -82,7 +82,7 @@ func main() {
 	}
 
 	for i := 0; i < 256; i++ {
-		proto := net.IPv4Protocol(i)
+		proto := net.IPProtocol(i)
 		host.RegisterCallback(func(b []byte, src, dst net.IPv4) {
 			callback(b, src, dst, proto)
 		}, proto)
@@ -169,7 +169,7 @@ func main1() {
 	var host net.IPv4Host
 	host.AddDevice(dev)
 	for i := 0; i < 256; i++ {
-		proto := net.IPv4Protocol(i)
+		proto := net.IPProtocol(i)
 		host.RegisterCallback(func(b []byte, src, dst net.IPv4) {
 			callback(b, src, dst, proto)
 		}, proto)
@@ -189,6 +189,6 @@ func main1() {
 	}
 }
 
-func callback(b []byte, src, dst net.IPv4, proto net.IPv4Protocol) {
+func callback(b []byte, src, dst net.IPv4, proto net.IPProtocol) {
 	fmt.Printf("%v -> %v (%v): %v\n", src, dst, proto, string(b))
 }

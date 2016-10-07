@@ -9,10 +9,125 @@ import "sync"
 // a single subnet, but we also allow multiple subnets that are "unequal"
 // because one is a subset of the other.
 
-// type namedDevice struct {
-// 	name string
-// 	dev  Device
-// }
+type IPv4Route struct {
+	Subnet  IPv4Subnet
+	Nexthop IPv4
+}
+
+type IPv4DeviceRoute struct {
+	Subnet IPv4Subnet
+	Device IPv4Device
+}
+
+type IPv6Route struct {
+	Subnet  IPv6Subnet
+	Nexthop IPv6
+}
+
+type IPv6DeviceRoute struct {
+	Subnet IPv6Subnet
+	Device IPv6Device
+}
+
+type ipv4RoutingTable struct {
+	rt routingTable
+}
+
+func (rt *ipv4RoutingTable) AddRoute(subnet IPv4Subnet, nexthop IPv4) {
+	rt.rt.AddRoute(subnet, nexthop)
+}
+
+func (rt *ipv4RoutingTable) DeleteRoute(subnet IPv4Subnet) {
+	rt.rt.DeleteRoute(subnet)
+}
+
+func (rt *ipv4RoutingTable) AddDeviceRoute(subnet IPv4Subnet, dev IPv4Device) {
+	rt.rt.AddDeviceRoute(subnet, dev)
+}
+
+func (rt *ipv4RoutingTable) DeleteDeviceRoute(subnet IPv4Subnet) {
+	rt.rt.DeleteDeviceRoute(subnet)
+}
+
+func (rt *ipv4RoutingTable) Lookup(addr IPv4) (nexthop IPv4, dev IPv4Device) {
+	n, d := rt.rt.Lookup(addr)
+	if n == nil {
+		return IPv4{}, nil
+	}
+	return n.(IPv4), d.(IPv4Device)
+}
+
+func (rt *ipv4RoutingTable) Routes() []IPv4Route {
+	var routes []IPv4Route
+	for _, route := range rt.rt.Routes() {
+		routes = append(routes, IPv4Route{
+			Subnet:  route.subnet.(IPv4Subnet),
+			Nexthop: route.nexthop.(IPv4),
+		})
+	}
+	return routes
+}
+
+func (rt *ipv4RoutingTable) DeviceRoutes() []IPv4DeviceRoute {
+	var routes []IPv4DeviceRoute
+	for _, route := range rt.rt.DeviceRoutes() {
+		routes = append(routes, IPv4DeviceRoute{
+			Subnet: route.subnet.(IPv4Subnet),
+			Device: route.device.(IPv4Device),
+		})
+	}
+	return routes
+}
+
+type ipv6RoutingTable struct {
+	rt routingTable
+}
+
+func (rt *ipv6RoutingTable) AddRoute(subnet IPv6Subnet, nexthop IPv6) {
+	rt.rt.AddRoute(subnet, nexthop)
+}
+
+func (rt *ipv6RoutingTable) DeleteRoute(subnet IPv6Subnet) {
+	rt.rt.DeleteRoute(subnet)
+}
+
+func (rt *ipv6RoutingTable) AddDeviceRoute(subnet IPv6Subnet, dev IPv6Device) {
+	rt.rt.AddDeviceRoute(subnet, dev)
+}
+
+func (rt *ipv6RoutingTable) DeleteDeviceRoute(subnet IPv6Subnet) {
+	rt.rt.DeleteDeviceRoute(subnet)
+}
+
+func (rt *ipv6RoutingTable) Lookup(addr IPv4) (nexthop IPv6, dev IPv6Device) {
+	n, d := rt.rt.Lookup(addr)
+	if n == nil {
+		return IPv6{}, nil
+	}
+	return n.(IPv6), d.(IPv6Device)
+}
+
+func (rt *ipv6RoutingTable) Routes() []IPv6Route {
+	var routes []IPv6Route
+	for _, route := range rt.rt.Routes() {
+		routes = append(routes, IPv6Route{
+			Subnet:  route.subnet.(IPv6Subnet),
+			Nexthop: route.nexthop.(IPv6),
+		})
+	}
+	return routes
+}
+
+func (rt *ipv6RoutingTable) DeviceRoutes() []IPv6DeviceRoute {
+	var routes []IPv6DeviceRoute
+	for _, route := range rt.rt.DeviceRoutes() {
+		routes = append(routes, IPv6DeviceRoute{
+			Subnet: route.subnet.(IPv6Subnet),
+			Device: route.device.(IPv6Device),
+		})
+	}
+	return routes
+}
 
 // routingTable is generic so that it can work with either IPv4 or IPv6,
 // but any given instance should only be used with one of the two versions,
@@ -110,4 +225,18 @@ func (r *routingTable) lookupDeviceRoute(addr IP) Device {
 		}
 	}
 	return nil
+}
+
+func (r *routingTable) Routes() []routingTableIPRoute {
+	r.mu.RLock()
+	routes := append([]routingTableIPRoute(nil), r.routes...)
+	r.mu.RUnlock()
+	return routes
+}
+
+func (r *routingTable) DeviceRoutes() []routingTableDeviceRoute {
+	r.mu.RLock()
+	routes := append([]routingTableDeviceRoute(nil), r.deviceRoutes...)
+	r.mu.RUnlock()
+	return routes
 }

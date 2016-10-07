@@ -164,7 +164,7 @@ func ParseIP(s string) (IP, error) {
 	switch {
 	case ip == nil:
 		return nil, errors.Errorf("malformed IP: %v", s)
-	case ip.To4() != nil:
+	case netIPIsV4(ip):
 		var ipv4 IPv4
 		copy(ipv4[:], ip.To4())
 		return ipv4, nil
@@ -213,7 +213,7 @@ func ParseCIDR(s string) (IP, IPSubnet, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if ip.To4() != nil {
+	if netIPIsV4(ip) {
 		var ipv4 IPv4
 		var ipnet4 IPv4Subnet
 		copy(ipv4[:], ip.To4())
@@ -253,6 +253,10 @@ func ParseCIDRIPv6(s string) (IPv6, IPv6Subnet, error) {
 		return ipv6, ipnet.(IPv6Subnet), nil
 	}
 	return IPv6{}, IPv6Subnet{}, errors.New("parse IPv6 CIDR: argument is IPv4 subnet")
+}
+
+func netIPIsV4(ip net.IP) bool {
+	return ip.To4() != nil
 }
 
 // // InSubnet returns true if addr is in the subnet defined by subnet and netmask.
