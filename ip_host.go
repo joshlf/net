@@ -9,6 +9,8 @@ type IPHost struct {
 	IPv6 *IPv6Host
 }
 
+// TODO(joshlf): Add RegisterCallback?
+
 // AddDevice adds dev as a device to host.IPv4, host.IPv6, or both depending
 // on which of the IPv4Device and IPv6Device interfaces it implements.
 func (host *IPHost) AddDevice(dev Device) {

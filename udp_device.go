@@ -157,7 +157,9 @@ func (dev *UDPIPv4Device) readDaemon() {
 			dev.sync.RUnlock()
 			continue
 		}
-		dev.callback(b)
+		if dev.callback != nil {
+			dev.callback(b)
+		}
 		dev.sync.RUnlock()
 	}
 }

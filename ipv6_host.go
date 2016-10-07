@@ -2,9 +2,6 @@ package net
 
 import "sync"
 
-// IPv6Protocol represents the protocol field of an IPv6 packet.
-type IPv6Protocol uint8
-
 type IPv6Host struct {
 	table     ipv6RoutingTable
 	devices   map[IPv6Device]bool // make sure to check if nil before modifying
@@ -80,7 +77,7 @@ func (host *IPv6Host) SetForwarding(on bool) {
 // RegisterCallback registers f to be called whenever an IP packet of the given
 // protocol is received. It overwrites any previously-registered callbacks.
 // If f is nil, any previously-registered callbacks are cleared.
-func (host *IPv6Host) RegisterCallback(f func(b []byte, src, dst IPv6), proto IPv6Protocol) {
+func (host *IPv6Host) RegisterCallback(f func(b []byte, src, dst IPv6), proto IPProtocol) {
 	host.mu.Lock()
 	host.callbacks[int(proto)] = f
 	host.mu.Unlock()

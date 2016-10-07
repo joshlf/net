@@ -132,7 +132,6 @@ func definitionToDevice(s string) (*net.UDPIPv4Device, error) {
 	}
 	err = dev.SetIPv4(addr, subnet.Netmask)
 	return dev, errors.Annotate(err, "create device from definition")
-	// return dev, errors.Annotate(err, "create device from definition")
 }
 
 func main1() {

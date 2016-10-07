@@ -5,23 +5,19 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/juju/errors"
 )
 
 type Command struct {
-	Name       string
-	ShortUsage string // single-line usage summary
-	LongUsage  string // multi-line usage
+	Name             string
+	Usage            string // single-line usage string, not including command name
+	ShortDescription string // single-line summary
+	LongDescription  string // multi-line description
 
 	// Run is the function to call when the command is executed.
-	// Errors should only be returned that relate to execution
-	// of the CLI framework such as failing to write to stdout.
-	// Other non-CLI-related errors such as network errors should
-	// be reported directly to the user as appropriate.
-	Run func(cmd *Command, args []string) error
+	Run func(cmd *Command, args []string)
 
 	subcommands map[string]*Command
 }
@@ -48,7 +44,9 @@ func (c *Command) AddSubcommand(cmds ...*Command) {
 	}
 }
 
-func (c *Command) Execute(args string) error {
+func (c *Command) Execute(args string) {
+	// TODO(joshlf): Handle <command> help <subcommand> syntax
+
 	fields := strings.Fields(args)
 	var subcmd *Command
 	var ok bool
@@ -62,17 +60,34 @@ func (c *Command) Execute(args string) error {
 			if len(c.subcommands) == 0 {
 				panic("command has no run function or subcommands")
 			}
-			fmt.Printf("Available subcommands for %v:\n", c.Name)
-			var cmds []*Command
-			for _, cc := range c.subcommands {
-				cmds = append(cmds, cc)
-			}
-			printAvailableCommands(cmds...)
-			return nil
+			c.PrintUsage()
+			return
 		}
-		return c.Run(c, nil)
+		c.Run(c, fields)
+		return
 	}
-	return subcmd.Execute(strings.Join(fields[1:], " "))
+	subcmd.Execute(strings.Join(fields[1:], " "))
+}
+
+// Print long-form usage.
+func (c *Command) PrintUsage() {
+	if c.Usage != "" {
+		fmt.Printf("Usage: %v %v\n", c.Name, c.Usage)
+		fmt.Println()
+	}
+	fmt.Println(c.LongDescription)
+
+	if len(c.subcommands) > 0 {
+		// add a space between the description and the subcommands
+		fmt.Println()
+
+		fmt.Println("Available subcommands:")
+		var cmds []*Command
+		for _, cc := range c.subcommands {
+			cmds = append(cmds, cc)
+		}
+		printAvailableCommands(cmds...)
+	}
 }
 
 func ExecuteCommands(args string, cmds ...*Command) error {
@@ -95,7 +110,8 @@ func ExecuteCommands(args string, cmds ...*Command) error {
 	if !ok {
 		return noCommandErr(fields[0])
 	}
-	return c.Execute(strings.Join(fields[1:], " "))
+	c.Execute(strings.Join(fields[1:], " "))
+	return nil
 }
 
 func printAvailableCommands(cmds ...*Command) {
@@ -109,20 +125,16 @@ func printAvailableCommands(cmds ...*Command) {
 			longestName = len(c.Name)
 		}
 	}
+	longestName += 3 // at least 3 spaces between the name and the summary
 
 	for _, c := range cmds {
 		left := longestName - len(c.Name)
-		fmtstr := "%" + strconv.Itoa(left) + "v"
-		fmt.Printf(fmtstr+" - %v\n", c.Name, c.ShortUsage)
+		fmt.Printf("%v%v%v\n", c.Name, strings.Repeat(" ", left), c.ShortDescription)
 	}
 }
 
-// RunCLI runs an interactive command-line interface, reading from in and writing
-// to out. It is assumed that the human interface which provides in and out
-// behave like a normal terminal, with both typed (input) and output characters
-// being printed to the same displaly buffer. It is the responsibility of any
-// command's Run function to terminate all output with a newline so that output
-// is properly pretty-printed.
+// RunCLI runs an interactive command-line interface, reading from os.Stdin
+// and writing to os.Stdout
 func RunCLI(cmds ...*Command) (err error) {
 	s := bufio.NewScanner(os.Stdin)
 	fmt.Print("> ")
