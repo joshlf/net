@@ -109,8 +109,8 @@ func (host *IPv4Host) WriteTo(b []byte, addr IPv4, proto IPProtocol) (n int, err
 func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPProtocol, ttl uint8) (n int, err error) {
 	host.mu.RLock()
 	defer host.mu.RUnlock()
-	nexthop, dev := host.table.Lookup(addr)
-	if nexthop == nil {
+	nexthop, dev, ok := host.table.Lookup(addr)
+	if !ok {
 		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv4 packet")
 	}
 	ok, devaddr, _ := dev.(IPv4Device).IPv4()
@@ -135,7 +135,7 @@ func (host *IPv4Host) WriteToTTL(b []byte, addr IPv4, proto IPProtocol, ttl uint
 	writeIPv4Header(&hdr, buf)
 	copy(buf[20:], b)
 
-	n, err = dev.(IPv4Device).WriteToIPv4(buf, nexthop.(IPv4))
+	n, err = dev.WriteToIPv4(buf, nexthop)
 	if n < 20 {
 		n = 0
 	} else {
@@ -183,12 +183,12 @@ func (host *IPv4Host) callback(dev IPv4Device, b []byte) {
 		}
 		hdr.TTL--
 		setTTL(b, hdr.TTL)
-		nexthop, dev := host.table.Lookup(hdr.dst)
-		if nexthop == nil {
+		nexthop, dev, ok := host.table.Lookup(hdr.dst)
+		if !ok {
 			// TODO(joshlf): ICMP reply
 			return
 		}
-		dev.(IPv4Device).WriteToIPv4(b, nexthop.(IPv4))
+		dev.WriteToIPv4(b, nexthop)
 		// TODO(joshlf): Log error
 	}
 }

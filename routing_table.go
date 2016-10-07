@@ -49,12 +49,12 @@ func (rt *ipv4RoutingTable) DeleteDeviceRoute(subnet IPv4Subnet) {
 	rt.rt.DeleteDeviceRoute(subnet)
 }
 
-func (rt *ipv4RoutingTable) Lookup(addr IPv4) (nexthop IPv4, dev IPv4Device) {
+func (rt *ipv4RoutingTable) Lookup(addr IPv4) (nexthop IPv4, dev IPv4Device, ok bool) {
 	n, d := rt.rt.Lookup(addr)
 	if n == nil {
-		return IPv4{}, nil
+		return IPv4{}, nil, false
 	}
-	return n.(IPv4), d.(IPv4Device)
+	return n.(IPv4), d.(IPv4Device), true
 }
 
 func (rt *ipv4RoutingTable) Routes() []IPv4Route {
@@ -99,12 +99,12 @@ func (rt *ipv6RoutingTable) DeleteDeviceRoute(subnet IPv6Subnet) {
 	rt.rt.DeleteDeviceRoute(subnet)
 }
 
-func (rt *ipv6RoutingTable) Lookup(addr IPv4) (nexthop IPv6, dev IPv6Device) {
+func (rt *ipv6RoutingTable) Lookup(addr IPv4) (nexthop IPv6, dev IPv6Device, ok bool) {
 	n, d := rt.rt.Lookup(addr)
 	if n == nil {
-		return IPv6{}, nil
+		return IPv6{}, nil, false
 	}
-	return n.(IPv6), d.(IPv6Device)
+	return n.(IPv6), d.(IPv6Device), true
 }
 
 func (rt *ipv6RoutingTable) Routes() []IPv6Route {
