@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joshlf/net"
 	"github.com/joshlf/net/example/internal"
@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	routeFileFlag string
+	routeFileFlag  string
+	forwardingFlag bool
 
 	host = net.IPHost{
 		IPv4: &net.IPv4Host{},
@@ -23,11 +24,14 @@ var (
 
 func init() {
 	pflag.StringVar(&routeFileFlag, "route-file", "", "File with route table.")
+	pflag.BoolVar(&forwardingFlag, "ip-forward", false, "Turn on IP forwarding.")
 	postParseFuncs = append(postParseFuncs, func() {
 		if !pflag.Lookup("route-file").Changed {
 			fmt.Fprintln(os.Stderr, "Missing required flag --route-file")
 			os.Exit(1)
 		}
+
+		host.SetForwarding(forwardingFlag)
 
 		routefile, err := os.Open(routeFileFlag)
 		if err != nil {
@@ -73,14 +77,14 @@ var cmdIP = cli.Command{
 
 var cmdIPListen = cli.Command{
 	Name:             "listen",
-	Usage:            "[protocol number] [on | off]",
+	Usage:            "<protocol number> [on | off]",
 	ShortDescription: "Listen for IP packets",
 	LongDescription: `Turn listening on or off for IP packets with a given protocol number.
 When listening is on, IP packets received with the given protocol number
 will be printed to the terminal.`,
 
 	Run: func(cmd *cli.Command, args []string) {
-		if len(args) != 2 || (args[1] != "on" && args[1] != "off" ){
+		if len(args) != 2 || (args[1] != "on" && args[1] != "off") {
 			cmd.PrintUsage()
 			return
 		}
@@ -120,7 +124,7 @@ each of which will be joined with a single space character.`,
 		if len(args) < 2 || (len(args) == 3 && args[2] == "--ttl") {
 			// (len(args) == 3 && args[2] == "--ttl") is true when
 			// --ttl is the last argument (and thus must be an
-		// illegal usage)
+			// illegal usage)
 			cmd.PrintUsage()
 			return
 		}
@@ -162,7 +166,7 @@ var cmdIPForward = cli.Command{
 With a single argument, "on" or "off", turn IP forwarding on or off.`,
 
 	Run: func(cmd *cli.Command, args []string) {
-		switch  {
+		switch {
 		case len(args) == 0:
 			on := "on"
 			if !host.IPv4.Forwarding() {
@@ -180,7 +184,6 @@ With a single argument, "on" or "off", turn IP forwarding on or off.`,
 		}
 	},
 }
-
 
 var cmdIPRoute = cli.Command{
 	Name:             "route",

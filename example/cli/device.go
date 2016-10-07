@@ -42,12 +42,12 @@ func init() {
 
 		devfile, err := os.Open(deviceFileFlag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "could not open device file: ", err)
+			fmt.Fprintln(os.Stderr, "could not open device file:", err)
 			os.Exit(2)
 		}
 		pairs, err := internal.ParsePairs(devfile)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "could not parse device file: ", err)
+			fmt.Fprintln(os.Stderr, "could not parse device file:", err)
 			os.Exit(2)
 		}
 		for _, pair := range pairs {
@@ -73,12 +73,12 @@ func init() {
 				os.Exit(1)
 			}
 			devices.Put(name, dev)
-      if dev4, ok := dev.(net.IPv4Device); ok {
-        host.IPv4.AddDevice(dev4)
-      }
-      if dev6, ok := dev.(net.IPv6Device); ok {
-        host.IPv6.AddDevice(dev6)
-      }
+			if dev4, ok := dev.(net.IPv4Device); ok {
+				host.IPv4.AddDevice(dev4)
+			}
+			if dev6, ok := dev.(net.IPv6Device); ok {
+				host.IPv6.AddDevice(dev6)
+			}
 		}
 	})
 }
