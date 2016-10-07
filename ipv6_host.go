@@ -74,6 +74,14 @@ func (host *IPv6Host) SetForwarding(on bool) {
 	host.mu.Unlock()
 }
 
+// Forwarding returns whether or not forwarding is turned on for host.
+func (host *IPv6Host) Forwarding() bool {
+	host.mu.RLock()
+	on := host.forward
+	host.mu.RUnlock()
+	return on
+}
+
 // RegisterCallback registers f to be called whenever an IP packet of the given
 // protocol is received. It overwrites any previously-registered callbacks.
 // If f is nil, any previously-registered callbacks are cleared.

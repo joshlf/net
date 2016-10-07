@@ -67,6 +67,11 @@ func (host *IPHost) AddDeviceRoute(subnet IPSubnet, dev Device) error {
 	return nil
 }
 
+func (host *IPHost) SetForwarding(on bool) {
+	host.IPv4.SetForwarding(on)
+	host.IPv6.SetForwarding(on)
+}
+
 // WriteTo writes to the appropriate host depending on the IP version of addr.
 func (host *IPHost) WriteTo(b []byte, addr IP, proto IPProtocol) (n int, err error) {
 	switch addr := addr.(type) {
