@@ -201,31 +201,47 @@ var cmdIPRoute = cli.Command{
 		ipv6Routes := host.IPv6.Routes()
 		ipv6DevRoutes := host.IPv6.DeviceRoutes()
 		fmt.Println("IPv4 Routes")
-		fmt.Println("===========")
-		for _, r := range ipv4Routes {
-			fmt.Printf("%v %v\n", r.Subnet, r.Nexthop)
-		}
-		for _, r := range ipv4DevRoutes {
-			name, ok := devices.GetName(r.Device)
-			if !ok {
-				panic(fmt.Errorf("unexpected internal error: could not get name for device %v", r.Device))
-			}
-			fmt.Printf("%v %v\n", r.Subnet, name)
-		}
+		printIPv4Routes(ipv4Routes, ipv4DevRoutes)
 		fmt.Println("IPv6 Routes")
 		fmt.Println("===========")
 		for _, r := range ipv6Routes {
-			fmt.Printf("%v %v\n", r.Subnet, r.Nexthop)
+			fmt.Printf("%v %v %v\n", r.Subnet.Addr, r.Subnet.Netmask, r.Nexthop)
 		}
 		for _, r := range ipv6DevRoutes {
 			name, ok := devices.GetName(r.Device)
 			if !ok {
 				panic(fmt.Errorf("unexpected internal error: could not get name for device %v", r.Device))
 			}
-			fmt.Printf("%v %v\n", r.Subnet, name)
+			fmt.Printf("%v %v %v\n", r.Subnet.Addr, r.Subnet.Netmask, name)
 		}
 		return
 	},
+}
+
+func printIPv4Routes(routes []net.IPv4Route, devroutes []net.IPv4DeviceRoute) {
+	// at least three spaces between each element on a line
+	fmt.Println("Address           Netmask           Next Hop")
+	fmt.Println("============================================")
+
+	const maxlen = len("000.000.000.000")
+	for _, r := range routes {
+		addr := fmt.Sprint(r.Subnet.Addr)
+		addr += strings.Repeat(" ", maxlen-len(addr))
+		netmask := fmt.Sprint(r.Subnet.Netmask)
+		netmask += strings.Repeat(" ", maxlen-len(netmask))
+		fmt.Printf("%v   %v   %v\n", addr, netmask, r.Nexthop)
+	}
+	for _, r := range devroutes {
+		addr := fmt.Sprint(r.Subnet.Addr)
+		addr += strings.Repeat(" ", maxlen-len(addr))
+		netmask := fmt.Sprint(r.Subnet.Netmask)
+		netmask += strings.Repeat(" ", maxlen-len(netmask))
+		name, ok := devices.GetName(r.Device)
+		if !ok {
+			panic(fmt.Errorf("unexpected internal error: could not get name for device %v", r.Device))
+		}
+		fmt.Printf("%v   %v   %v\n", addr, netmask, name)
+	}
 }
 
 // sortableRoutes sorts routes by subnet; normal and device routes
