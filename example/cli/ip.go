@@ -290,10 +290,51 @@ func (s sortableRoutes) Less(i, j int) bool {
 	panic("not implemented")
 }
 
+var cmdIPRouteAdd = cli.Command{
+	Name:             "add",
+	Usage:            "<network-cidr> <nexthop>",
+	ShortDescription: "Add an IP route",
+	LongDescription: `Add a route to the IP routing table. The network should be
+specified in CIDR notation, and the nexthop can be either
+an address or a device name.`,
+
+	Run: func(cmd *cli.Command, args []string) {
+		if len(args) != 2 {
+			cmd.PrintUsage()
+			return
+		}
+
+		_, subnet, err := net.ParseCIDR(args[0])
+		if err != nil {
+			fmt.Println("could not parse network:", err)
+			return
+		}
+		nexthopIP, err := net.ParseIP(args[1])
+		var nexthopDev net.Device
+		if err != nil {
+			var ok bool
+			nexthopDev, ok = devices.Get(args[1])
+			if !ok {
+				fmt.Println("nexthop is neither IP address nor device name")
+				return
+			}
+		}
+		if nexthopDev != nil {
+			err = host.AddDeviceRoute(subnet, nexthopDev)
+		} else {
+			err = host.AddRoute(subnet, nexthopIP)
+		}
+		if err != nil {
+			fmt.Println("could not add route:", err)
+		}
+	},
+}
+
 func init() {
 	topLevelCommands = append(topLevelCommands, &cmdIP)
 	cmdIP.AddSubcommand(&cmdIPListen)
 	cmdIP.AddSubcommand(&cmdIPSend)
 	cmdIP.AddSubcommand(&cmdIPForward)
 	cmdIP.AddSubcommand(&cmdIPRoute)
+	cmdIPRoute.AddSubcommand(&cmdIPRouteAdd)
 }
