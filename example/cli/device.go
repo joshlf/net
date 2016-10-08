@@ -74,10 +74,10 @@ func init() {
 			}
 			devices.Put(name, dev)
 			if dev4, ok := dev.(net.IPv4Device); ok {
-				host.IPv4.AddIPv4Device(dev4)
+				host.IPv4Host.AddIPv4Device(dev4)
 			}
 			if dev6, ok := dev.(net.IPv6Device); ok {
-				host.IPv6.AddIPv6Device(dev6)
+				host.IPv6Host.AddIPv6Device(dev6)
 			}
 		}
 	})

@@ -17,8 +17,8 @@ var (
 	forwardingFlag bool
 
 	host = net.IPHost{
-		IPv4: net.NewIPv4Host(),
-		IPv6: net.NewIPv6Host(),
+		IPv4Host: net.NewIPv4Host(),
+		IPv6Host: net.NewIPv6Host(),
 	}
 )
 
@@ -99,15 +99,15 @@ will be printed to the terminal.`,
 			f := func(b []byte, src, dst net.IP) {
 				fmt.Printf("%v -> %v (%v): %v\n", src, dst, proto, string(b))
 			}
-			host.IPv4.RegisterIPv4Callback(func(b []byte, src, dst net.IPv4) {
+			host.IPv4Host.RegisterIPv4Callback(func(b []byte, src, dst net.IPv4) {
 				f(b, src, dst)
 			}, net.IPProtocol(proto))
-			host.IPv6.RegisterIPv6Callback(func(b []byte, src, dst net.IPv6) {
+			host.IPv6Host.RegisterIPv6Callback(func(b []byte, src, dst net.IPv6) {
 				f(b, src, dst)
 			}, net.IPProtocol(proto))
 		} else {
-			host.IPv4.RegisterIPv4Callback(nil, net.IPProtocol(proto))
-			host.IPv6.RegisterIPv6Callback(nil, net.IPProtocol(proto))
+			host.IPv4Host.RegisterIPv4Callback(nil, net.IPProtocol(proto))
+			host.IPv6Host.RegisterIPv6Callback(nil, net.IPProtocol(proto))
 		}
 	},
 }
@@ -169,7 +169,7 @@ With a single argument, "on" or "off", turn IP forwarding on or off.`,
 		switch {
 		case len(args) == 0:
 			on := "on"
-			if !host.IPv4.Forwarding() {
+			if !host.IPv4Host.Forwarding() {
 				// since we only ever turn forwarding on/off for both
 				// IPv4 and IPv6 at the same time, just check IPv4
 				on = "off"
@@ -196,10 +196,10 @@ var cmdIPRoute = cli.Command{
 			return
 		}
 
-		ipv4Routes := host.IPv4.IPv4Routes()
-		ipv4DevRoutes := host.IPv4.IPv4DeviceRoutes()
-		ipv6Routes := host.IPv6.IPv6Routes()
-		ipv6DevRoutes := host.IPv6.IPv6DeviceRoutes()
+		ipv4Routes := host.IPv4Host.IPv4Routes()
+		ipv4DevRoutes := host.IPv4Host.IPv4DeviceRoutes()
+		ipv6Routes := host.IPv6Host.IPv6Routes()
+		ipv6DevRoutes := host.IPv6Host.IPv6DeviceRoutes()
 		fmt.Println("IPv4 Routes")
 		printIPv4Routes(ipv4Routes, ipv4DevRoutes)
 		fmt.Println("IPv6 Routes")

@@ -33,8 +33,8 @@ type IPv6Host interface {
 }
 
 type IPHost struct {
-	IPv4 IPv4Host
-	IPv6 IPv6Host
+	IPv4Host
+	IPv6Host
 }
 
 // TODO(joshlf): Add RegisterCallback?
@@ -43,10 +43,10 @@ type IPHost struct {
 // on which of the IPv4Device and IPv6Device interfaces it implements.
 func (host *IPHost) AddDevice(dev Device) {
 	if dev4, ok := dev.(IPv4Device); ok {
-		host.IPv4.AddIPv4Device(dev4)
+		host.IPv4Host.AddIPv4Device(dev4)
 	}
 	if dev6, ok := dev.(IPv6Device); ok {
-		host.IPv6.AddIPv6Device(dev6)
+		host.IPv6Host.AddIPv6Device(dev6)
 	}
 }
 
@@ -54,10 +54,10 @@ func (host *IPHost) AddDevice(dev Device) {
 // on which of the IPv4Device and IPv6Device interfaces it implements.
 func (host *IPHost) RemoveDevice(dev Device) {
 	if dev4, ok := dev.(IPv4Device); ok {
-		host.IPv4.RemoveIPv4Device(dev4)
+		host.IPv4Host.RemoveIPv4Device(dev4)
 	}
 	if dev6, ok := dev.(IPv6Device); ok {
-		host.IPv6.RemoveIPv6Device(dev6)
+		host.IPv6Host.RemoveIPv6Device(dev6)
 	}
 }
 
@@ -68,9 +68,9 @@ func (host *IPHost) AddRoute(subnet IPSubnet, nexthop IP) error {
 	}
 	switch subnet.IPVersion() {
 	case 4:
-		host.IPv4.AddIPv4Route(subnet.(IPv4Subnet), nexthop.(IPv4))
+		host.IPv4Host.AddIPv4Route(subnet.(IPv4Subnet), nexthop.(IPv4))
 	case 6:
-		host.IPv6.AddIPv6Route(subnet.(IPv6Subnet), nexthop.(IPv6))
+		host.IPv6Host.AddIPv6Route(subnet.(IPv6Subnet), nexthop.(IPv6))
 	}
 	return nil
 }
@@ -84,29 +84,29 @@ func (host *IPHost) AddDeviceRoute(subnet IPSubnet, dev Device) error {
 		if !ok {
 			errors.New("add device route: IPv4 subnet with non-IPv4-enabled device")
 		}
-		host.IPv4.AddIPv4DeviceRoute(subnet, dev4)
+		host.IPv4Host.AddIPv4DeviceRoute(subnet, dev4)
 	case IPv6Subnet:
 		dev6, ok := dev.(IPv6Device)
 		if !ok {
 			errors.New("add device route: IPv6 subnet with non-IPv6-enabled device")
 		}
-		host.IPv6.AddIPv6DeviceRoute(subnet, dev6)
+		host.IPv6Host.AddIPv6DeviceRoute(subnet, dev6)
 	}
 	return nil
 }
 
 func (host *IPHost) SetForwarding(on bool) {
-	host.IPv4.SetForwarding(on)
-	host.IPv6.SetForwarding(on)
+	host.IPv4Host.SetForwarding(on)
+	host.IPv6Host.SetForwarding(on)
 }
 
 // WriteTo writes to the appropriate host depending on the IP version of addr.
 func (host *IPHost) WriteTo(b []byte, addr IP, proto IPProtocol) (n int, err error) {
 	switch addr := addr.(type) {
 	case IPv4:
-		return host.IPv4.WriteToIPv4(b, addr, proto)
+		return host.IPv4Host.WriteToIPv4(b, addr, proto)
 	case IPv6:
-		return host.IPv6.WriteToIPv6(b, addr, proto)
+		return host.IPv6Host.WriteToIPv6(b, addr, proto)
 	default:
 		panic("unreachable")
 	}
@@ -116,9 +116,9 @@ func (host *IPHost) WriteTo(b []byte, addr IP, proto IPProtocol) (n int, err err
 func (host *IPHost) WriteToTTL(b []byte, addr IP, proto IPProtocol, ttl uint8) (n int, err error) {
 	switch addr := addr.(type) {
 	case IPv4:
-		return host.IPv4.WriteToTTLIPv4(b, addr, proto, ttl)
+		return host.IPv4Host.WriteToTTLIPv4(b, addr, proto, ttl)
 	case IPv6:
-		return host.IPv6.WriteToTTLIPv6(b, addr, proto, ttl)
+		return host.IPv6Host.WriteToTTLIPv6(b, addr, proto, ttl)
 	default:
 		panic("unreachable")
 	}
