@@ -144,7 +144,7 @@ func (dev *UDPIPv4Device) readDaemon() {
 			dev.sync.RUnlock()
 			continue
 		}
-		_, err = dev.conn.Read(b)
+		n, err := dev.conn.Read(b)
 		// TODO(joshlf): Read doesn't seem to return an error if there's
 		// a partial read, so we can't tell whether there was more data
 		// (that is, whether the other side sent a larger frame than the
@@ -158,7 +158,7 @@ func (dev *UDPIPv4Device) readDaemon() {
 			continue
 		}
 		if dev.callback != nil {
-			dev.callback(b)
+			dev.callback(b[:n])
 		}
 		dev.sync.RUnlock()
 	}
