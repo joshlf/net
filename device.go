@@ -31,30 +31,6 @@ type Device interface {
 	// MTU returns the device's maximum transmission unit,
 	// or 0 if no MTU is set.
 	MTU() int
-
-	// // Read reads a packet from the device,
-	// // copying the payload into b. It returns the
-	// // number of bytes copied into b and the return
-	// // address and protocol that were on the packet.
-	// // ReadFrom can be made to time out and return
-	// // an error with Timeout() == true after a fixed
-	// // time limit; see SetDeadline and SetReadDeadline.
-	// //
-	// // If a packet larger than len(b) is received,
-	// // n will be len(b), and err will be io.EOF
-	// Read(b []byte) (n int, err error)
-	// // WriteTo writes a packet to the device with
-	// // the specified destination address.
-	// // WriteTo can be made to time out and return
-	// // an error with Timeout() == true after a fixed time limit;
-	// // see SetDeadline and SetWriteDeadline.
-	// // On device connections, write timeouts are rare.
-	// //
-	// // If len(b) is larger than the device's MTU,
-	// // WriteTo will not write the packet, and will
-	// // return an MTU error (see IsMTU).
-	// WriteTo(b []byte, dst IP) (n int, err error)
-	// Deadliner
 }
 
 // An IPv4Device is a Device with IPv4-specific methods.
@@ -172,72 +148,3 @@ func (d *DeviceSet) remove(name string) {
 	delete(d.byName, name)
 	delete(d.byDevice, dev)
 }
-
-//
-// // A DeviceSet is a set of named Devices. A DeviceSet is safe for concurrent
-// // access.
-// type DeviceSet struct {
-// 	devices []namedDevice
-// 	mu      sync.RWMutex
-// }
-//
-// type namedDevice struct {
-// 	name string
-// 	dev  Device
-// }
-//
-// // Get gets the named Device.
-// func (d *DeviceSet) Get(name string) (ok bool, dev Device) {
-// 	d.mu.RLock()
-// 	for _, d := range d.devices {
-// 		if d.name == name {
-// 			ok, dev = true, d.dev
-// 		}
-// 	}
-// 	d.mu.RUnlock()
-// 	return ok, dev
-// }
-//
-// // GetName gets the name for the given Device.
-// func (d *DeviceSet) GetName(dev Device) (ok bool, name string) {
-// 	d.mu.RLock()
-// 	for _, d := range d.devices {
-// 		if d.dev == dev {
-// 			ok, name = true, d.name
-// 		}
-// 	}
-// 	d.mu.RUnlock()
-// 	return ok, name
-// }
-//
-// // ListNames returns a list of device names.
-// func (d *DeviceSet) ListNames() (names []string) {
-// 	d.mu.RLock()
-// 	for _, d := range d.devices {
-// 		names = append(names, d.name)
-// 	}
-// 	d.mu.RUnlock()
-// 	return names
-// }
-//
-// // Put stores a new Device under the given name, overwriting any previous
-// // Device by the same name. If dev is nil, any Device with the given name
-// // will be removed.
-// func (d *DeviceSet) Put(name string, dev Device) {
-// 	d.mu.Lock()
-// 	defer d.mu.Unlock()
-// 	for i, dd := range d.devices {
-// 		if dd.name == name {
-// 			if dev == nil {
-// 				// remove
-// 				copy(d.devices[i:], d.devices[i+1:])
-// 				d.devices = d.devices[:len(d.devices)]
-// 			} else {
-// 				// overwrite
-// 				d.devices[i].dev = dev
-// 			}
-// 			return
-// 		}
-// 	}
-// 	d.devices = append(d.devices, namedDevice{name: name, dev: dev})
-// }

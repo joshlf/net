@@ -99,12 +99,7 @@ will be printed to the terminal.`,
 			f := func(b []byte, src, dst net.IP) {
 				fmt.Printf("%v -> %v (%v): %v\n", src, dst, proto, string(b))
 			}
-			host.IPv4Host.RegisterIPv4Callback(func(b []byte, src, dst net.IPv4) {
-				f(b, src, dst)
-			}, net.IPProtocol(proto))
-			host.IPv6Host.RegisterIPv6Callback(func(b []byte, src, dst net.IPv6) {
-				f(b, src, dst)
-			}, net.IPProtocol(proto))
+			host.RegisterCallback(f, net.IPProtocol(proto))
 		} else {
 			host.IPv4Host.RegisterIPv4Callback(nil, net.IPProtocol(proto))
 			host.IPv6Host.RegisterIPv6Callback(nil, net.IPProtocol(proto))

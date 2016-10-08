@@ -12,7 +12,7 @@ import (
 // UDPIPv4Device are point-to-point - there is always exactly one other
 // link-local device.
 //
-// The zero UDPIPv4Device is not a valid UDPIPv4Device. UDPIPv4Device are safe
+// The zero UDPIPv4Device is not a valid UDPIPv4Device. UDPIPv4Devices are safe
 // for concurrent access.
 type UDPIPv4Device struct {
 	laddr, raddr  *net.UDPAddr
@@ -105,15 +105,16 @@ func (dev *UDPIPv4Device) isUp() bool {
 	return dev.conn != nil
 }
 
+// MTU returns dev's MTU.
 func (dev *UDPIPv4Device) MTU() int { return dev.mtu }
 
+// RegisterIPv4Callback registers f to be called when IPv4 packets are received.
 func (dev *UDPIPv4Device) RegisterIPv4Callback(f func(b []byte)) {
 	dev.sync.RLock()
 	dev.callback = f
 	dev.sync.RUnlock()
 }
 
-// WriteToIPv4 is like Device's WriteTo, but for IPv4 only.
 func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 	if len(b) > dev.mtu {
 		return 0, mtuErr("write to device: IPv4 payload exceeds MTU")

@@ -37,8 +37,6 @@ type IPHost struct {
 	IPv6Host
 }
 
-// TODO(joshlf): Add RegisterCallback?
-
 // AddDevice adds dev as a device to host.IPv4, host.IPv6, or both depending
 // on which of the IPv4Device and IPv6Device interfaces it implements.
 func (host *IPHost) AddDevice(dev Device) {
@@ -59,6 +57,13 @@ func (host *IPHost) RemoveDevice(dev Device) {
 	if dev6, ok := dev.(IPv6Device); ok {
 		host.IPv6Host.RemoveIPv6Device(dev6)
 	}
+}
+
+// RegisterCallback registers f as the callback for both host.IPv4Host and
+// host.IPv6Host.
+func (host *IPHost) RegisterCallback(f func(b []byte, src, dst IP), proto IPProtocol) {
+	host.IPv4Host.RegisterIPv4Callback(func(b []byte, src, dst IPv4) { f(b, src, dst) }, proto)
+	host.IPv6Host.RegisterIPv6Callback(func(b []byte, src, dst IPv6) { f(b, src, dst) }, proto)
 }
 
 // AddRoute adds the given route to host.IPv4 or host.IPv6 as appropriate.
@@ -95,6 +100,7 @@ func (host *IPHost) AddDeviceRoute(subnet IPSubnet, dev Device) error {
 	return nil
 }
 
+// SetForwarding sets forwarding on or off on host.IPv4Host and host.IPv6Host.
 func (host *IPHost) SetForwarding(on bool) {
 	host.IPv4Host.SetForwarding(on)
 	host.IPv6Host.SetForwarding(on)
