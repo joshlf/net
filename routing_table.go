@@ -99,7 +99,7 @@ func (rt *ipv6RoutingTable) DeleteDeviceRoute(subnet IPv6Subnet) {
 	rt.rt.DeleteDeviceRoute(subnet)
 }
 
-func (rt *ipv6RoutingTable) Lookup(addr IPv4) (nexthop IPv6, dev IPv6Device, ok bool) {
+func (rt *ipv6RoutingTable) Lookup(addr IPv6) (nexthop IPv6, dev IPv6Device, ok bool) {
 	n, d := rt.rt.Lookup(addr)
 	if n == nil {
 		return IPv6{}, nil, false

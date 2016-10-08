@@ -1,6 +1,12 @@
 package net
 
-import "sync"
+import (
+	"math"
+	"sync"
+
+	"github.com/joshlf/net/internal/parse"
+	"github.com/juju/errors"
+)
 
 type ipv6Host struct {
 	table     ipv6RoutingTable
@@ -97,7 +103,77 @@ func (host *ipv6Host) WriteToIPv6(b []byte, addr IPv6, proto IPProtocol) (n int,
 }
 
 func (host *ipv6Host) WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops uint8) (n int, err error) {
-	panic("unimplemented")
+	host.mu.RLock()
+	defer host.mu.RUnlock()
+	nexthop, dev, ok := host.table.Lookup(addr)
+	if !ok {
+		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv6 packet")
+	}
+	ok, devaddr, _ := dev.(IPv6Device).IPv6()
+	if !ok {
+		return 0, errors.New("device has no IPv6 address")
+	}
+
+	if len(b) > math.MaxUint16-40 {
+		// MTU errors are only for link-layer payloads
+		return 0, errors.New("IPv6 payload exceeds maximum IPv6 packet size")
+	}
+
+	var hdr ipv6Header
+	hdr.version = 6
+	hdr.len = 40 + uint16(len(b))
+	hdr.nextHdr = proto
+	hdr.hopLimit = hops
+	hdr.src = devaddr
+	hdr.dst = addr
+
+	buf := make([]byte, int(hdr.len))
+	writeIPv6Header(&hdr, buf)
+	copy(buf[40:], b)
+
+	n, err = dev.WriteToIPv6(buf, nexthop)
+	if n < 40 {
+		n = 0
+	} else {
+		n -= 20
+	}
+
+	return n, errors.Annotate(err, "write IPv6 packet")
+}
+
+type ipv6Header struct {
+	version      uint8
+	trafficClass uint8
+	flowLabel    uint32
+	len          uint16
+	nextHdr      IPProtocol
+	hopLimit     uint8
+	src, dst     IPv6
+}
+
+func writeIPv6Header(hdr *ipv6Header, buf []byte) {
+	parse.GetBytes(&buf, 1)[0] = (hdr.version << 4) | (hdr.trafficClass >> 4)
+	parse.GetBytes(&buf, 1)[0] = (hdr.trafficClass << 4) | uint8(hdr.flowLabel>>16)
+	parse.PutUint16(&buf, uint16(hdr.flowLabel&0xff))
+	parse.PutUint16(&buf, hdr.len)
+	parse.GetBytes(&buf, 1)[0] = byte(hdr.nextHdr)
+	parse.GetBytes(&buf, 1)[0] = hdr.hopLimit
+	copy(parse.GetBytes(&buf, 16), hdr.src[:])
+	copy(parse.GetBytes(&buf, 16), hdr.dst[:])
+}
+
+func readIPv6Header(hdr *ipv6Header, buf []byte) {
+	a := parse.GetByte(&buf)
+	hdr.version = a >> 4
+	b := parse.GetByte(&buf)
+	hdr.trafficClass = (a << 4) | (b >> 4)
+	flowBottom := parse.GetUint16(&buf)
+	hdr.flowLabel = (uint32(b&0xf) << 16) | uint32(flowBottom)
+	hdr.len = parse.GetUint16(&buf)
+	hdr.nextHdr = IPProtocol(parse.GetByte(&buf))
+	hdr.hopLimit = parse.GetByte(&buf)
+	copy(hdr.src[:], parse.GetBytes(&buf, 16))
+	copy(hdr.dst[:], parse.GetBytes(&buf, 16))
 }
 
 func (host *ipv6Host) callback(dev IPv6Device, b []byte) {}
