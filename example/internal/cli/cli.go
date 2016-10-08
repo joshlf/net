@@ -45,13 +45,15 @@ func (c *Command) AddSubcommand(cmds ...*Command) {
 }
 
 func (c *Command) Execute(args string) {
-	// TODO(joshlf): Handle <command> help <subcommand> syntax
-
 	fields := strings.Fields(args)
 	var subcmd *Command
 	var ok bool
 	if len(fields) != 0 {
 		// if len(fields) == 0, then there's definitely no subcommand
+		if fields[0] == "-h" || fields[0] == "--help" {
+			c.PrintUsage()
+			return
+		}
 		subcmd, ok = c.subcommands[fields[0]]
 	}
 
