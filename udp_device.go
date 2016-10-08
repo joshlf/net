@@ -72,33 +72,35 @@ func (dev *UDPIPv4Device) SetIPv4(addr, netmask IPv4) error {
 
 // BringUp brings dev up. If it is already up, BringUp is a no-op.
 func (dev *UDPIPv4Device) BringUp() error {
-	dev.sync.Lock()
-	defer dev.sync.Unlock()
-	if dev.isUp() {
-		return nil
-	}
+	return dev.sync.BringUp(func() error {
+		dev.sync.Lock()
+		defer dev.sync.Unlock()
+		// NOTE(joshlf): Don't need to check whether the device is up already;
+		// dev.sync.BringUp guarantees that we'll only be called if the device
+		// is down.
 
-	conn, err := net.ListenUDP("udp", dev.laddr)
-	if err != nil {
-		return errors.Annotate(err, "bring device up")
-	}
-	dev.conn = conn
-	dev.sync.SpawnDaemon(dev.readDaemon)
-	return nil
+		conn, err := net.ListenUDP("udp", dev.laddr)
+		if err != nil {
+			return errors.Annotate(err, "bring device up")
+		}
+		dev.conn = conn
+		return nil
+	}, dev.readDaemon)
 }
 
 // BringDown brings dev down. If it is already down, BringDown is a no-op.
 func (dev *UDPIPv4Device) BringDown() error {
-	dev.sync.Lock()
-	defer dev.sync.Unlock()
-	if !dev.isUp() {
-		return nil
-	}
+	return dev.sync.BringDown(func() error {
+		dev.sync.Lock()
+		defer dev.sync.Unlock()
+		// NOTE(joshlf): Don't need to check whether the device is down already;
+		// dev.sync.BringDown guarantees that we'll only be called if the device
+		// is down.
 
-	dev.sync.StopDaemons()
-	err := dev.conn.Close()
-	dev.conn = nil
-	return errors.Annotate(err, "bring device down")
+		err := dev.conn.Close()
+		dev.conn = nil
+		return errors.Annotate(err, "bring device down")
+	})
 }
 
 // IsUp returns true if dev is up.
@@ -146,11 +148,6 @@ func (dev *UDPIPv4Device) readDaemon() {
 		default:
 		}
 
-		// TODO(joshlf): Bug here. Somebody bringing the device down could
-		// acquire the write lock, then we check dev.sync.StopChan, then
-		// they close dev.sync.StopChan, then they block waiting for us to
-		// return, then we try acquiring the read lock, blocking on them
-		// releasing it, which won't happen until we return.
 		dev.sync.RLock()
 		err := dev.conn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
 		if err != nil {
