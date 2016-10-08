@@ -1,7 +1,6 @@
 package net
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/juju/errors"
@@ -16,7 +15,7 @@ func (IPv4) isIP() {}
 func (i IPv4) IPVersion() int { return 4 }
 
 func (i IPv4) String() string {
-	return fmt.Sprintf("%d.%d.%d.%d", i[0], i[1], i[2], i[3])
+	return net.IP(i[:]).String()
 }
 
 // IPv6 is an IPv6 address
@@ -28,8 +27,7 @@ func (IPv6) isIP() {}
 func (i IPv6) IPVersion() int { return 6 }
 
 func (i IPv6) String() string {
-	panic("not implemented")
-	// TODO(joshlf): see Go's implementation
+	return net.IP(i[:]).String()
 }
 
 // IP is an IPv4 or IPv6 address. It is only implemented by IPv4 and IPv6.
