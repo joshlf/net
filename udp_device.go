@@ -150,8 +150,8 @@ func (dev *UDPIPv4Device) readDaemon() {
 			dev.sync.RUnlock()
 			continue
 		}
-		n, err := dev.conn.Read(b)
-		// TODO(joshlf): Read doesn't seem to return an error if there's
+		n, _, err := dev.conn.ReadFrom(b)
+		// TODO(joshlf): ReadFrom doesn't seem to return an error if there's
 		// a partial read, so we can't tell whether there was more data
 		// (that is, whether the other side sent a larger frame than the
 		// MTU allows). Maybe we need to define a simple header format
