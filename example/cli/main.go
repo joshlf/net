@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/joshlf/net/example/internal/cli"
 	"github.com/spf13/pflag"
@@ -18,6 +19,7 @@ var (
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	pflag.Parse()
 	for _, f := range postParseFuncs {
 		f()
