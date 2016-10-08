@@ -6,30 +6,30 @@ import (
 
 type IPv4Host interface {
 	AddIPv4Device(dev IPv4Device)
+	RemoveIPv4Device(dev IPv4Device)
+	RegisterIPv4Callback(f func(b []byte, src, dst IPv4), proto IPProtocol)
 	AddIPv4Route(subnet IPv4Subnet, nexthop IPv4)
 	AddIPv4DeviceRoute(subnet IPv4Subnet, dev IPv4Device)
-	IPv4DeviceRoutes() []IPv4DeviceRoute
-	Forwarding() bool
-	RegisterIPv4Callback(f func(b []byte, src, dst IPv4), proto IPProtocol)
-	RemoveIPv4Device(dev IPv4Device)
 	IPv4Routes() []IPv4Route
+	IPv4DeviceRoutes() []IPv4DeviceRoute
 	SetForwarding(on bool)
+	Forwarding() bool
 	WriteToIPv4(b []byte, addr IPv4, proto IPProtocol) (n int, err error)
 	WriteToTTLIPv4(b []byte, addr IPv4, proto IPProtocol, ttl uint8) (n int, err error)
 }
 
 type IPv6Host interface {
 	AddIPv6Device(dev IPv6Device)
-	AddIPv6DeviceRoute(subnet IPv6Subnet, dev IPv6Device)
-	AddIPv6Route(subnet IPv6Subnet, nexthop IPv6)
-	IPv6DeviceRoutes() []IPv6DeviceRoute
-	Forwarding() bool
-	RegisterIPv6Callback(f func(b []byte, src, dst IPv6), proto IPProtocol)
 	RemoveIPv6Device(dev IPv6Device)
+	RegisterIPv6Callback(f func(b []byte, src, dst IPv6), proto IPProtocol)
+	AddIPv6Route(subnet IPv6Subnet, nexthop IPv6)
+	AddIPv6DeviceRoute(subnet IPv6Subnet, dev IPv6Device)
 	IPv6Routes() []IPv6Route
+	IPv6DeviceRoutes() []IPv6DeviceRoute
 	SetForwarding(on bool)
+	Forwarding() bool
 	WriteToIPv6(b []byte, addr IPv6, proto IPProtocol) (n int, err error)
-	WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops uint8) (n int, err error)
+	WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, ttl uint8) (n int, err error)
 }
 
 type IPHost struct {
