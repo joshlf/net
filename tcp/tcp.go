@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/joshlf/net"
+	"github.com/joshlf/net/internal/parse"
 )
 
 type TCPPort uint16
@@ -22,16 +23,16 @@ type ipv4Listener struct {
 
 // IPv4Host ... the zero value is not a valid IPv4Host
 type IPv4Host struct {
-	iphost    *net.IPv4Host
+	iphost    net.IPv4Host
 	listeners map[ipv4Listener]struct{} // TODO(joshlf): what's the value type?
 	conns     map[ipv4FourTuple]*ipv4Conn
 
 	mu sync.RWMutex
 }
 
-func NewIPv4Host(iphost *net.IPv4Host) (*IPv4Host, error) {
+func NewIPv4Host(iphost net.IPv4Host) (*IPv4Host, error) {
 	host := &IPv4Host{iphost: iphost}
-	iphost.RegisterCallback(host.callback, net.IPProtocolTCP)
+	iphost.RegisterIPv4Callback(host.callback, net.IPProtocolTCP)
 	return host, nil
 }
 
@@ -97,30 +98,30 @@ type tcpIPv4Header struct {
 
 // returns the number of bytes consumed from b
 func parseTCPIPv4Header(b []byte, hdr *tcpIPv4Header) (int, error) {
-	hdr.srcport = TCPPort(getUint16(&b))
-	hdr.dstport = TCPPort(getUint16(&b))
-	hdr.seq = getUint32(&b)
-	hdr.ack = getUint32(&b)
+	hdr.srcport = TCPPort(parse.GetUint16(&b))
+	hdr.dstport = TCPPort(parse.GetUint16(&b))
+	hdr.seq = parse.GetUint32(&b)
+	hdr.ack = parse.GetUint32(&b)
 	hdr.dataOff = b[0] >> 5
 	hdr.flags = tcpIPv4Flags(b[0]&1)<<7 | tcpIPv4Flags(b[1])
 	b = b[2:]
-	hdr.window = getUint16(&b)
-	hdr.checksum = getUint16(&b)
-	hdr.urgptr = getUint16(&b)
+	hdr.window = parse.GetUint16(&b)
+	hdr.checksum = parse.GetUint16(&b)
+	hdr.urgptr = parse.GetUint16(&b)
 	return 20, nil
 }
 
 // returns the number of bytes consumed from b
 func writeTCPIPv4Header(b []byte, hdr *tcpIPv4Header) (int, error) {
-	putUint16(&b, uint16(hdr.srcport))
-	putUint16(&b, uint16(hdr.dstport))
-	putUint32(&b, uint32(hdr.seq))
-	putUint32(&b, uint32(hdr.ack))
+	parse.PutUint16(&b, uint16(hdr.srcport))
+	parse.PutUint16(&b, uint16(hdr.dstport))
+	parse.PutUint32(&b, uint32(hdr.seq))
+	parse.PutUint32(&b, uint32(hdr.ack))
 	b[0] = (hdr.dataOff << 5) | uint8(hdr.flags>>8)
 	b[1] = uint8(hdr.flags)
 	b = b[2:]
-	putUint16(&b, uint16(hdr.window))
-	putUint16(&b, uint16(hdr.checksum))
-	putUint16(&b, uint16(hdr.urgptr))
+	parse.PutUint16(&b, uint16(hdr.window))
+	parse.PutUint16(&b, uint16(hdr.checksum))
+	parse.PutUint16(&b, uint16(hdr.urgptr))
 	return 20, nil
 }

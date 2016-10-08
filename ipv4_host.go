@@ -1,10 +1,10 @@
 package net
 
 import (
-	"encoding/binary"
 	"math"
 	"sync"
 
+	"github.com/joshlf/net/internal/parse"
 	"github.com/juju/errors"
 )
 
@@ -223,37 +223,37 @@ type ipv4Header struct {
 
 // assumes b is long enough
 func writeIPv4Header(hdr *ipv4Header, buf []byte) {
-	getBytes(&buf, 1)[0] = (hdr.version << 4) | hdr.IHL
-	getBytes(&buf, 1)[0] = (hdr.DSCP << 2) | hdr.ECN
-	binary.BigEndian.PutUint16(getBytes(&buf, 2), hdr.len)
-	binary.BigEndian.PutUint16(getBytes(&buf, 2), hdr.id)
-	getBytes(&buf, 1)[0] = (hdr.flags << 5) | uint8(hdr.fragOff>>8)
-	getBytes(&buf, 1)[0] = byte(hdr.fragOff)
-	getBytes(&buf, 1)[0] = hdr.TTL
-	getBytes(&buf, 1)[0] = byte(hdr.proto)
-	binary.BigEndian.PutUint16(getBytes(&buf, 2), hdr.checksum)
-	copy(getBytes(&buf, 4), hdr.src[:])
-	copy(getBytes(&buf, 4), hdr.dst[:])
+	parse.GetBytes(&buf, 1)[0] = (hdr.version << 4) | hdr.IHL
+	parse.GetBytes(&buf, 1)[0] = (hdr.DSCP << 2) | hdr.ECN
+	parse.PutUint16(&buf, hdr.len)
+	parse.PutUint16(&buf, hdr.id)
+	parse.GetBytes(&buf, 1)[0] = (hdr.flags << 5) | uint8(hdr.fragOff>>8)
+	parse.GetBytes(&buf, 1)[0] = byte(hdr.fragOff)
+	parse.GetBytes(&buf, 1)[0] = hdr.TTL
+	parse.GetBytes(&buf, 1)[0] = byte(hdr.proto)
+	parse.PutUint16(&buf, hdr.checksum)
+	copy(parse.GetBytes(&buf, 4), hdr.src[:])
+	copy(parse.GetBytes(&buf, 4), hdr.dst[:])
 }
 
 // assumes b is long enough
 func readIPv4Header(hdr *ipv4Header, buf []byte) {
-	b := getByte(&buf)
+	b := parse.GetByte(&buf)
 	hdr.version = b >> 4
 	hdr.IHL = b & 0xF
-	b = getByte(&buf)
+	b = parse.GetByte(&buf)
 	hdr.DSCP = b >> 2
 	hdr.ECN = b & 3
-	hdr.len = binary.BigEndian.Uint16(getBytes(&buf, 2))
-	hdr.id = binary.BigEndian.Uint16(getBytes(&buf, 2))
-	b = getByte(&buf)
+	hdr.len = parse.GetUint16(&buf)
+	hdr.id = parse.GetUint16(&buf)
+	b = parse.GetByte(&buf)
 	hdr.flags = b >> 5
-	hdr.fragOff = (uint16(b&0x1F) << 8) | uint16(getByte(&buf)) // 0x1F is 5 1s bits
-	hdr.TTL = getByte(&buf)
-	hdr.proto = IPProtocol(getByte(&buf))
-	hdr.checksum = binary.BigEndian.Uint16(getBytes(&buf, 2))
-	copy(hdr.src[:], getBytes(&buf, 4))
-	copy(hdr.dst[:], getBytes(&buf, 4))
+	hdr.fragOff = (uint16(b&0x1F) << 8) | uint16(parse.GetByte(&buf)) // 0x1F is 5 1s bits
+	hdr.TTL = parse.GetByte(&buf)
+	hdr.proto = IPProtocol(parse.GetByte(&buf))
+	hdr.checksum = parse.GetUint16(&buf)
+	copy(hdr.src[:], parse.GetBytes(&buf, 4))
+	copy(hdr.dst[:], parse.GetBytes(&buf, 4))
 }
 
 // setTTL sets the TTL in the IP header encoded in b

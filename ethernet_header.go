@@ -2,7 +2,8 @@ package net
 
 import (
 	"encoding/binary"
-	"fmt"
+
+	"github.com/joshlf/net/internal/parse"
 )
 
 const (
@@ -66,13 +67,13 @@ func parseEthernetHeader(b []byte) (eh ethernetHeader, err error) {
 	}()
 
 	const tpid = 0x8100
-	copy(eh.dst[:], getBytes(&b, 6))
-	copy(eh.src[:], getBytes(&b, 6))
-	eh.et = EtherType(binary.BigEndian.Uint16(getBytes(&b, 2)))
+	copy(eh.dst[:], parse.GetBytes(&b, 6))
+	copy(eh.src[:], parse.GetBytes(&b, 6))
+	eh.et = EtherType(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
 	if eh.et == tpid {
 		eh.ieee8021Q = uint32(eh.et) << 16
-		eh.ieee8021Q |= uint32(binary.BigEndian.Uint16(getBytes(&b, 2)))
-		eh.et = EtherType(binary.BigEndian.Uint16(getBytes(&b, 2)))
+		eh.ieee8021Q |= uint32(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
+		eh.et = EtherType(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
 	}
 
 	return eh, nil
@@ -80,26 +81,13 @@ func parseEthernetHeader(b []byte) (eh ethernetHeader, err error) {
 
 // assumes that b is long enough to hold the encoding of eh
 func writeEthernetHeader(eh ethernetHeader, b []byte) {
-	copy(getBytes(&b, 6), eh.dst[:])
-	copy(getBytes(&b, 6), eh.src[:])
+	copy(parse.GetBytes(&b, 6), eh.dst[:])
+	copy(parse.GetBytes(&b, 6), eh.src[:])
 	if eh.Has8021Q() {
 		// explicitly set the TPID
 		eh.ieee8021Q &= 0xFFFF
 		eh.ieee8021Q |= 0x81000000
-		binary.BigEndian.PutUint32(getBytes(&b, 4), eh.ieee8021Q)
+		binary.BigEndian.PutUint32(parse.GetBytes(&b, 4), eh.ieee8021Q)
 	}
-	binary.BigEndian.PutUint16(getBytes(&b, 2), uint16(eh.et))
-}
-
-func getByte(b *[]byte) byte {
-	return getBytes(b, 1)[0]
-}
-
-func getBytes(b *[]byte, n int) []byte {
-	if len(*b) < n {
-		panic(fmt.Errorf("insufficient length"))
-	}
-	x := (*b)[:n]
-	*b = (*b)[n:]
-	return x
+	binary.BigEndian.PutUint16(parse.GetBytes(&b, 2), uint16(eh.et))
 }
