@@ -137,6 +137,11 @@ func (dev *UDPIPv4Device) readDaemon() {
 		default:
 		}
 
+		// TODO(joshlf): Bug here. Somebody bringing the device down could
+		// acquire the write lock, then we check dev.sync.StopChan, then
+		// they close dev.sync.StopChan, then they block waiting for us to
+		// return, then we try acquiring the read lock, blocking on them
+		// releasing it, which won't happen until we return.
 		dev.sync.RLock()
 		err := dev.conn.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
 		if err != nil {
