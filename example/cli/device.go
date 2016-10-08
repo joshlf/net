@@ -24,6 +24,8 @@ var (
 
 type deviceDriver struct {
 	getDevice func(args []string) (net.Device, error)
+	// get any information relevant for printing using 'dev' command
+	getInfo func(dev net.Device) (string, error)
 
 	// use to initialize driver-type-specific commands
 	// (doesn't really need to be concurrency safe;
@@ -121,14 +123,79 @@ var cmdDev = cli.Command{
 		names := devices.ListNames()
 		sort.Strings(names)
 		fmt.Println("Devices")
-		fmt.Println("=======")
+		fmt.Println("Name      MTU       Up     Driver-Specific")
+		fmt.Println("==========================================")
+		const maxlen = 10
+		const maxuplen = 7 // "down" plus a trailing three spaces
 		for _, name := range names {
 			dev, _ := devices.Get(name)
-			fmt.Printf("%v %v\n", name, dev.IsUp())
+			mtu := fmt.Sprint(dev.MTU())
+			up := "up"
+			if !dev.IsUp() {
+				up = "down"
+			}
+			typ, _, _ := parseDevName(name)
+			info, err := deviceDrivers[typ].getInfo(dev)
+			if err != nil {
+				fmt.Printf("get info for %v: %v\n", name, err)
+			}
+			fmt.Printf("%v%v%v%v\n", name+strings.Repeat(" ", maxlen-len(name)),
+				mtu+strings.Repeat(" ", maxlen-len(mtu)),
+				up+strings.Repeat(" ", maxuplen-len(up)), info)
+		}
+	},
+}
+
+var cmdDevUp = cli.Command{
+	Name:             "up",
+	Usage:            "<device>",
+	ShortDescription: "Bring a device up",
+	LongDescription:  "Bring a device up.",
+
+	Run: func(c *cli.Command, args []string) {
+		if len(args) != 1 {
+			c.PrintUsage()
+			return
+		}
+		name := args[0]
+		dev, ok := devices.Get(name)
+		if !ok {
+			fmt.Println("no such device")
+			return
+		}
+		err := dev.BringUp()
+		if err != nil {
+			fmt.Println(err)
+		}
+	},
+}
+
+var cmdDevDown = cli.Command{
+	Name:             "down",
+	Usage:            "<device>",
+	ShortDescription: "Bring a device down",
+	LongDescription:  "Bring a device down.",
+
+	Run: func(c *cli.Command, args []string) {
+		if len(args) != 1 {
+			c.PrintUsage()
+			return
+		}
+		name := args[0]
+		dev, ok := devices.Get(name)
+		if !ok {
+			fmt.Println("no such device")
+			return
+		}
+		err := dev.BringDown()
+		if err != nil {
+			fmt.Println(err)
 		}
 	},
 }
 
 func init() {
 	topLevelCommands = append(topLevelCommands, &cmdDev)
+	cmdDev.AddSubcommand(&cmdDevUp)
+	cmdDev.AddSubcommand(&cmdDevDown)
 }

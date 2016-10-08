@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	gonet "net"
 	"strconv"
 
@@ -35,6 +36,11 @@ var udpIPv4Driver = deviceDriver{
 		}
 		err = dev.SetIPv4(addr, subnet.Netmask)
 		return dev, errors.Annotate(err, "create device from definition")
+	},
+	getInfo: func(dev net.Device) (string, error) {
+		udpdev := dev.(*net.UDPIPv4Device)
+		laddr, raddr := udpdev.UDPAddrs()
+		return fmt.Sprintf("%v -> %v", laddr, raddr), nil
 	},
 	init: func() {},
 }

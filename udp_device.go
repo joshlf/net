@@ -38,6 +38,14 @@ func NewUDPIPv4Device(laddr, raddr *net.UDPAddr, mtu int) (dev *UDPIPv4Device, e
 	return &UDPIPv4Device{laddr: laddr, raddr: raddr, mtu: mtu}, nil
 }
 
+// UDPAddrs returns the local and remote UDP addresses used by dev.
+func (dev *UDPIPv4Device) UDPAddrs() (laddr, raddr *net.UDPAddr) {
+	dev.sync.RLock()
+	laddr, raddr = dev.laddr, dev.raddr
+	dev.sync.RUnlock()
+	return laddr, raddr
+}
+
 // IPv4 returns dev's IPv4 address and network mask if they have been set.
 func (dev *UDPIPv4Device) IPv4() (ok bool, addr, netmask IPv4) {
 	dev.sync.RLock()
