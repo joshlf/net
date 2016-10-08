@@ -1,10 +1,6 @@
 package net
 
-import (
-	"encoding/binary"
-
-	"github.com/joshlf/net/internal/parse"
-)
+import "github.com/joshlf/net/internal/parse"
 
 const (
 	// length in bytes of an ethernet frame header
@@ -69,11 +65,11 @@ func parseEthernetHeader(b []byte) (eh ethernetHeader, err error) {
 	const tpid = 0x8100
 	copy(eh.dst[:], parse.GetBytes(&b, 6))
 	copy(eh.src[:], parse.GetBytes(&b, 6))
-	eh.et = EtherType(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
+	eh.et = EtherType(parse.GetUint16(&b))
 	if eh.et == tpid {
 		eh.ieee8021Q = uint32(eh.et) << 16
-		eh.ieee8021Q |= uint32(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
-		eh.et = EtherType(binary.BigEndian.Uint16(parse.GetBytes(&b, 2)))
+		eh.ieee8021Q |= uint32(parse.GetUint16(&b))
+		eh.et = EtherType(parse.GetUint16(&b))
 	}
 
 	return eh, nil
@@ -87,7 +83,7 @@ func writeEthernetHeader(eh ethernetHeader, b []byte) {
 		// explicitly set the TPID
 		eh.ieee8021Q &= 0xFFFF
 		eh.ieee8021Q |= 0x81000000
-		binary.BigEndian.PutUint32(parse.GetBytes(&b, 4), eh.ieee8021Q)
+		parse.PutUint32(&b, eh.ieee8021Q)
 	}
-	binary.BigEndian.PutUint16(parse.GetBytes(&b, 2), uint16(eh.et))
+	parse.PutUint16(&b, uint16(eh.et))
 }
