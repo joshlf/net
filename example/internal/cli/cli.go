@@ -146,6 +146,7 @@ func RunCLI(cmds ...*Command) (err error) {
 		case IsNoCommand(err):
 			fmt.Println(err)
 			fmt.Println("To list available commands, type 'help'.")
+			fmt.Println("To get help for a specific command, type '<command> -h' or '<command> --help'.")
 		case err != nil:
 			return errors.Annotate(err, "run CLI")
 		}
