@@ -16,7 +16,7 @@ import (
 // for concurrent access.
 type UDPIPv4Device struct {
 	laddr, raddr  *net.UDPAddr
-	conn          *net.UDPConn // down if nil
+	conn          *net.UDPConn // only a listening connection; down if nil
 	mtu           int
 	addr, netmask IPv4           // unset if zero value
 	callback      func(b []byte) // unset if nil
@@ -70,7 +70,7 @@ func (dev *UDPIPv4Device) BringUp() error {
 		return nil
 	}
 
-	conn, err := net.DialUDP("udp", dev.laddr, dev.raddr)
+	conn, err := net.ListenUDP("udp", dev.laddr)
 	if err != nil {
 		return errors.Annotate(err, "bring device up")
 	}
@@ -124,7 +124,7 @@ func (dev *UDPIPv4Device) WriteToIPv4(b []byte, dst IPv4) (n int, err error) {
 		return 0, errors.New("write to down device")
 	}
 
-	n, err = dev.conn.Write(b)
+	n, err = dev.conn.WriteToUDP(b, dev.raddr)
 	return n, errors.Annotate(err, "write to device")
 }
 
