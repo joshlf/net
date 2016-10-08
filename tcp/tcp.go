@@ -6,25 +6,26 @@ import (
 	"github.com/joshlf/net"
 )
 
-type TCPPort uint16
+// Port represents a TCP port.
+type Port uint16
 
 type ipv4FourTuple struct {
 	src     net.IPv4
-	srcport TCPPort
+	srcport Port
 	dst     net.IPv4
-	dstport TCPPort
+	dstport Port
 }
 
 type ipv4Listener struct {
 	addr net.IPv4
-	port TCPPort
+	port Port
 }
 
 // IPv4Host ... the zero value is not a valid IPv4Host
 type IPv4Host struct {
 	iphost    net.IPv4Host
 	listeners map[ipv4Listener]struct{} // TODO(joshlf): what's the value type?
-	conns     map[ipv4FourTuple]*ipv4Conn
+	conns     map[ipv4FourTuple]*conn
 
 	mu sync.RWMutex
 }
@@ -53,7 +54,7 @@ func (host *IPv4Host) callback(b []byte, src, dst net.IPv4) {
 		dstport: hdr.dstport,
 	}]
 	if ok {
-		conn.callback(&hdr, b)
+		conn.callback(&hdr.genericHeader, b)
 	} else {
 		listener, ok := host.listeners[ipv4Listener{
 			addr: dst,

@@ -2,13 +2,13 @@ package tcp
 
 import "sync"
 
-type ipv4Conn struct {
-	state func(conn *ipv4Conn, hdr *tcpIPv4Header, b []byte)
+type conn struct {
+	state func(conn *conn, hdr *genericHeader, b []byte)
 
 	mu sync.Mutex
 }
 
-func (conn *ipv4Conn) callback(hdr *tcpIPv4Header, b []byte) {
+func (conn *conn) callback(hdr *genericHeader, b []byte) {
 	conn.mu.Lock()
 	conn.state(conn, hdr, b)
 	conn.mu.Unlock()

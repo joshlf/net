@@ -28,6 +28,12 @@ func GetUint32(b *[]byte) uint32 {
 	return binary.BigEndian.Uint32(GetBytes(b, 4))
 }
 
+// PutByte calls GetBytes(b, 1) and stores n in the 0th element.
+func PutByte(b *[]byte, n uint8) {
+	(*b)[0] = n
+	*b = (*b)[1:]
+}
+
 // PutUint16 calls GetBytes(b, 2) and encodes n into the result using big endian
 // encoding.
 func PutUint16(b *[]byte, n uint16) {
