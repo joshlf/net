@@ -87,8 +87,9 @@ type EthernetDevice struct {
 	iface EthernetInterface
 	up    bool
 	// arp                  *arp         // nil if the device is down
-	addr4, netmask4      IPv4         // unset if zero value
-	addr6, netmask6      IPv6         // unset if zero value
+	addr4, netmask4      IPv4
+	addr6, netmask6      IPv6
+	addr4Set, addr6Set   bool
 	callback4, callback6 func([]byte) // unset if nil
 
 	// ipv4, ipv6 chan []byte // nil if the device is down
@@ -168,48 +169,64 @@ func (dev *EthernetDevice) RegisterIPv6Callback(f func(b []byte)) {
 // IPv4 returns dev's IPv4 address and network mask if they have been set.
 func (dev *EthernetDevice) IPv4() (addr, netmask IPv4, ok bool) {
 	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if dev.addr4 == (IPv4{}) {
-		return addr, netmask, false
-	}
-	return dev.addr4, dev.netmask4, true
+	addr, netmask, ok = dev.addr4, dev.netmask4, dev.addr4Set
+	dev.mu.RUnlock()
+	return addr, netmask, ok
 }
 
 // SetIPv4 sets dev's IPv4 address and network mask, returning any error
 // encountered. SetIPv4 can only be called when dev is down.
-//
-// Calling SetIPv4 with the zero value for addr unsets the IPv4 address.
 func (dev *EthernetDevice) SetIPv4(addr, netmask IPv4) error {
 	dev.mu.Lock()
 	defer dev.mu.Unlock()
 	if dev.isUp() {
 		return errors.New("set device IP address on up device")
 	}
-	dev.addr4, dev.netmask4 = addr, netmask
+	dev.addr4, dev.netmask4, dev.addr4Set = addr, netmask, true
+	return nil
+}
+
+// UnsetIPv4 unsets dev's IPv4 address and network mask, returning any error
+// encountered. UnsetIPv4 can only be called when dev is down.
+func (dev *EthernetDevice) UnsetIPv4() error {
+	dev.mu.Lock()
+	defer dev.mu.Unlock()
+	if dev.isUp() {
+		return errors.New("unset device IP address on up device")
+	}
+	dev.addr4, dev.netmask4, dev.addr4Set = IPv4{}, IPv4{}, false
 	return nil
 }
 
 // IPv6 returns dev's IPv6 address and network mask if they have been set.
 func (dev *EthernetDevice) IPv6() (addr, netmask IPv6, ok bool) {
 	dev.mu.RLock()
-	defer dev.mu.RUnlock()
-	if dev.addr6 == (IPv6{}) {
-		return addr, netmask, false
-	}
-	return dev.addr6, dev.netmask6, true
+	addr, netmask, ok = dev.addr6, dev.netmask6, dev.addr6Set
+	dev.mu.RUnlock()
+	return addr, netmask, ok
 }
 
 // SetIPv6 sets dev's IPv6 address and network mask, returning any error
 // encountered. SetIPv6 can only be called when dev is down.
-//
-// Calling SetIPv6 with the zero value for addr unsets the IPv6 address.
 func (dev *EthernetDevice) SetIPv6(addr, netmask IPv6) error {
 	dev.mu.Lock()
 	defer dev.mu.Unlock()
 	if dev.isUp() {
 		return errors.New("set device IP address on up device")
 	}
-	dev.addr6, dev.netmask6 = addr, netmask
+	dev.addr6, dev.netmask6, dev.addr4Set = addr, netmask, true
+	return nil
+}
+
+// UnsetIPv6 unsets dev's IPv6 address and network mask, returning any error
+// encountered. UnsetIPv4 can only be called when dev is down.
+func (dev *EthernetDevice) UnsetIPv6() error {
+	dev.mu.Lock()
+	defer dev.mu.Unlock()
+	if dev.isUp() {
+		return errors.New("unset device IP address on up device")
+	}
+	dev.addr6, dev.netmask6, dev.addr6Set = IPv6{}, IPv6{}, false
 	return nil
 }
 

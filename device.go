@@ -43,10 +43,11 @@ type IPv4Device interface {
 	// SetIPv4 sets the device's IPv4 address and network mask,
 	// returning any error encountered. SetIPv4 can only be
 	// called when the device is down.
-	//
-	// Calling SetIPv4 with the zero value for addr unsets
-	// the IPv4 address.
 	SetIPv4(addr, netmask IPv4) error
+	// UnsetIPv4 unsets the device's IPv4 address and network
+	// mask, returning any error encountered. UnsetIPv4 can
+	// only be called when the device is down.
+	UnsetIPv4() error
 
 	// RegisterIPv4Callback registers f as the function
 	// to be called when a new IPv4 packet arrives. It
@@ -68,10 +69,11 @@ type IPv6Device interface {
 	// SetIPv6 sets the device's IPv6 address and network mask,
 	// returning any error encountered. SetIPv6 can only be
 	// called when the device is down.
-	//
-	// Calling SetIPv6 with the zero value for addr unsets
-	// the IPv6 address.
 	SetIPv6(addr, netmask IPv6) error
+	// UnsetIPv6 unsets the device's IPv6 address and network
+	// mask, returning any error encountered. UnsetIPv6 can
+	// only be called when the device is down.
+	UnsetIPv6() error
 
 	// RegisterIPv6Callback registers f as the function
 	// to be called when a new IPv4 packet arrives. It

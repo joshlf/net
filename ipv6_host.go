@@ -109,7 +109,7 @@ func (host *ipv6Host) WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops
 	if !ok {
 		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv6 packet")
 	}
-	ok, devaddr, _ := dev.(IPv6Device).IPv6()
+	devaddr, _, ok := dev.(IPv6Device).IPv6()
 	if !ok {
 		return 0, errors.New("device has no IPv6 address")
 	}
