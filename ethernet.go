@@ -166,13 +166,13 @@ func (dev *EthernetDevice) RegisterIPv6Callback(f func(b []byte)) {
 }
 
 // IPv4 returns dev's IPv4 address and network mask if they have been set.
-func (dev *EthernetDevice) IPv4() (ok bool, addr, netmask IPv4) {
+func (dev *EthernetDevice) IPv4() (addr, netmask IPv4, ok bool) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if dev.addr4 == (IPv4{}) {
-		return false, addr, netmask
+		return addr, netmask, false
 	}
-	return true, dev.addr4, dev.netmask4
+	return dev.addr4, dev.netmask4, true
 }
 
 // SetIPv4 sets dev's IPv4 address and network mask, returning any error
@@ -190,13 +190,13 @@ func (dev *EthernetDevice) SetIPv4(addr, netmask IPv4) error {
 }
 
 // IPv6 returns dev's IPv6 address and network mask if they have been set.
-func (dev *EthernetDevice) IPv6() (ok bool, addr, netmask IPv6) {
+func (dev *EthernetDevice) IPv6() (addr, netmask IPv6, ok bool) {
 	dev.mu.RLock()
 	defer dev.mu.RUnlock()
 	if dev.addr6 == (IPv6{}) {
-		return false, addr, netmask
+		return addr, netmask, false
 	}
-	return true, dev.addr6, dev.netmask6
+	return dev.addr6, dev.netmask6, true
 }
 
 // SetIPv6 sets dev's IPv6 address and network mask, returning any error

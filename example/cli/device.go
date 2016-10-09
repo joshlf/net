@@ -123,6 +123,7 @@ var cmdDev = cli.Command{
 		names := devices.ListNames()
 		sort.Strings(names)
 		fmt.Println("Devices")
+		// TODO(joshlf): Print device's IP addres/subnet
 		fmt.Println("Name      MTU       Up     Driver-Specific")
 		fmt.Println("==========================================")
 		const maxlen = 10

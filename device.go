@@ -39,7 +39,7 @@ type IPv4Device interface {
 
 	// IPv4 returns the device's IPv4 address and network mask
 	// if they have been set.
-	IPv4() (ok bool, addr, netmask IPv4)
+	IPv4() (addr, netmask IPv4, ok bool)
 	// SetIPv4 sets the device's IPv4 address and network mask,
 	// returning any error encountered. SetIPv4 can only be
 	// called when the device is down.
@@ -64,7 +64,7 @@ type IPv6Device interface {
 
 	// IPv6 returns the device's IPv6 address and network mask
 	// if they have been set.
-	IPv6() (ok bool, addr, netmask IPv6)
+	IPv6() (addr, netmask IPv6, ok bool)
 	// SetIPv6 sets the device's IPv6 address and network mask,
 	// returning any error encountered. SetIPv6 can only be
 	// called when the device is down.

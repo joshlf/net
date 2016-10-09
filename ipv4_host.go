@@ -122,7 +122,7 @@ func (host *ipv4Host) WriteToTTLIPv4(b []byte, addr IPv4, proto IPProtocol, ttl 
 	if !ok {
 		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv4 packet")
 	}
-	ok, devaddr, _ := dev.(IPv4Device).IPv4()
+	devaddr, _, ok := dev.(IPv4Device).IPv4()
 	if !ok {
 		return 0, errors.New("device has no IPv4 address")
 	}
@@ -169,7 +169,7 @@ func (host *ipv4Host) callback(dev IPv4Device, b []byte) {
 	defer host.mu.RUnlock()
 	var us bool
 	for dev := range host.devices {
-		ok, addr, _ := dev.IPv4()
+		addr, _, ok := dev.IPv4()
 		if ok && addr == hdr.dst {
 			us = true
 			break
