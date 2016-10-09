@@ -164,6 +164,10 @@ func (host *ipv4Host) callback(dev IPv4Device, b []byte) {
 	}
 	var hdr ipv4Header
 	readIPv4Header(&hdr, b)
+	if int(hdr.len) != len(b) {
+		// TODO(joshlf): Log it
+		return
+	}
 
 	host.mu.RLock()
 	defer host.mu.RUnlock()
