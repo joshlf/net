@@ -182,6 +182,10 @@ func (host *ipv6Host) callback(dev IPv6Device, b []byte) {
 	}
 	var hdr ipv6Header
 	readIPv6Header(&hdr, b)
+	if int(hdr.len) != len(b) {
+		// TODO(joshlf): Log it
+		return
+	}
 
 	host.mu.RLock()
 	defer host.mu.RUnlock()
