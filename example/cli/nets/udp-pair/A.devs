@@ -1,1 +1,1 @@
-udp0 10.0.0.1/8 localhost:1234 localhost:5678 64
+udp4:0 10.0.0.1/8 localhost:1234 localhost:5678 64

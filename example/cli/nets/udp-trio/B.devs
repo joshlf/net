@@ -1,2 +1,2 @@
-udp0 10.0.0.2/8 localhost:5678 localhost:1234 64
-udp1 192.168.0.1/16 localhost:1681 localhost:1682 64
+udp4:0 10.0.0.2/8 localhost:5678 localhost:1234 64
+udp4:1 192.168.0.1/16 localhost:1681 localhost:1682 64

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -87,27 +86,11 @@ func init() {
 
 // typ is the type part of the name; name is the full name
 func parseDevName(str string) (typ, name string, err error) {
-	var i int
-	for ; i < len(str); i++ {
-		if str[i] < 'a' || str[i] > 'z' {
-			break
-		}
+	parts := strings.Split(str, ":")
+	if len(parts) != 2 {
+		return "", "", errors.New("device names must be of the form <type>:<suffix>, where <type> is a valid device type")
 	}
-
-	const errstr = "device names must be of the form <type><num>, where <type> is a valid device type"
-	if i == 0 || i == len(str) {
-		// no leading a-z characters or nothing but a-z characters
-		return "", "", errors.New(errstr)
-	}
-	typ = str[:i]
-
-	// TODO(joshlf): Currently, dev0 and dev00 (or dev1 and dev01) are different
-	_, err = strconv.ParseUint(str[i:], 10, 64)
-	if err != nil {
-		// must not be a non-negative number
-		return "", "", errors.New(errstr)
-	}
-	return typ, str, nil
+	return parts[0], str, nil
 }
 
 var cmdDev = cli.Command{
