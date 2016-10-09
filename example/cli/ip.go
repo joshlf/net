@@ -46,22 +46,14 @@ func init() {
 		for _, route := range routes {
 			switch route := route.(type) {
 			case internal.RouteEntry:
-				if route.Subnet.IPVersion() != 4 {
-					fmt.Fprintln(os.Stderr, "cannot use IPv6 route", route)
-					os.Exit(2)
-				}
-				host.AddRoute(route.Subnet.(net.IPv4Subnet), route.Nexthop.(net.IPv4))
+				host.AddRoute(route.Subnet, route.Nexthop)
 			case internal.RouteDeviceEntry:
-				if route.Subnet.IPVersion() != 4 {
-					fmt.Fprintln(os.Stderr, "cannot use IPv6 device route", route)
-					os.Exit(2)
-				}
 				dev, ok := devices.Get(route.Device)
 				if !ok {
 					fmt.Fprintln(os.Stderr, "no such device:", route.Device)
 					os.Exit(2)
 				}
-				host.AddDeviceRoute(route.Subnet.(net.IPv4Subnet), dev.(net.IPv4Device))
+				host.AddDeviceRoute(route.Subnet, dev)
 			default:
 				panic("unreachable")
 			}

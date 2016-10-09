@@ -135,7 +135,7 @@ func (host *ipv6Host) WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops
 	if n < 40 {
 		n = 0
 	} else {
-		n -= 20
+		n -= 40
 	}
 
 	return n, errors.Annotate(err, "write IPv6 packet")
@@ -176,4 +176,45 @@ func readIPv6Header(hdr *ipv6Header, buf []byte) {
 	copy(hdr.dst[:], parse.GetBytes(&buf, 16))
 }
 
-func (host *ipv6Host) callback(dev IPv6Device, b []byte) {}
+func (host *ipv6Host) callback(dev IPv6Device, b []byte) {
+	if len(b) < 40 {
+		return
+	}
+	var hdr ipv6Header
+	readIPv6Header(&hdr, b)
+
+	host.mu.RLock()
+	defer host.mu.RUnlock()
+	var us bool
+	for dev := range host.devices {
+		addr, _, ok := dev.IPv6()
+		if ok && addr == hdr.dst {
+			us = true
+			break
+		}
+	}
+
+	if us {
+		// deliver
+		c := host.callbacks[int(hdr.nextHdr)]
+		if c == nil {
+			return
+		}
+		c(b[40:], hdr.src, hdr.dst)
+	} else if host.forward {
+		// forward
+		if hdr.hopLimit < 2 {
+			// TTL is or would become 0 after decrement
+			// See "TTL" section, https://tools.ietf.org/html/rfc791#page-14
+			return
+		}
+		hdr.hopLimit--
+		setTTL(b, hdr.hopLimit)
+		nexthop, dev, ok := host.table.Lookup(hdr.dst)
+		if !ok {
+			// XXX: ICMPv6 reply
+			return
+		}
+		dev.WriteToIPv6(b, nexthop)
+	}
+}
