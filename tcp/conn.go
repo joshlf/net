@@ -18,6 +18,8 @@ const (
 	stateClosed
 )
 
+type seq uint32
+
 type Conn struct {
 	state   state
 	statefn func(conn *Conn, hdr *genericHeader, b []byte)
@@ -30,3 +32,7 @@ type Conn struct {
 }
 
 func (conn *Conn) callback(hdr *genericHeader, b []byte) { conn.statefn(conn, hdr, b) }
+
+func (conn *Conn) listen(hdr *genericHeader, b []byte) {
+
+}
