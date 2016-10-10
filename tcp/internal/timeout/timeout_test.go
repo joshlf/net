@@ -1,4 +1,4 @@
-package tcp
+package timeout
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ func TestTimeout(t *testing.T) {
 	// is called at most once, and those that are cancelled are never
 	// called.
 
-	conn := &Conn{}
+	var mu sync.Mutex
 	type timeoutTest struct {
 		calls     int
 		cancelled bool
@@ -35,7 +35,7 @@ func TestTimeout(t *testing.T) {
 		}
 		return &tt
 	}
-	timeoutTests := make(map[*timeoutTest]*timeout)
+	timeoutTests := make(map[*timeoutTest]*Timeout)
 
 	// run the test for one second
 	end := time.Now().Add(time.Second)
@@ -44,8 +44,7 @@ func TestTimeout(t *testing.T) {
 		numgoroutines = runtime.NumCPU()
 	}
 
-	to := timeouter{Conn: conn}
-	to.Start()
+	daemon := NewDaemon(&mu)
 	var wg sync.WaitGroup
 	wg.Add(numgoroutines)
 	for i := 0; i < numgoroutines; i++ {
@@ -56,23 +55,24 @@ func TestTimeout(t *testing.T) {
 					return
 				}
 
-				conn.mu.Lock()
 				if rand.Int()%100 == 0 {
-					// 1 in 100 chance of cancelling existing timeout
+					// 1 in 100 chance of cancelling existing timeout;
+					// randomly pick one timeout and cancel it
+					mu.Lock()
 					for _, to := range timeoutTests {
 						to.Cancel()
 						break
 					}
+					mu.Unlock()
 				} else {
+					// 99 in 100 chance of spawning a new timeout
 					tt := makeTimeoutTest()
-					timeout := &timeout{
-						t: time.Now().Add(time.Millisecond * 10),
-						f: tt.f,
-					}
-					timeoutTests[tt] = timeout
-					to.AddTimeout(timeout)
+					to := daemon.AddTimeout(tt.f, time.Now().Add(time.Millisecond*10))
+					mu.Lock()
+					timeoutTests[tt] = to
+					mu.Unlock()
 				}
-				conn.mu.Unlock()
+
 			}
 		}()
 	}
@@ -84,9 +84,8 @@ func TestTimeoutLiveness(t *testing.T) {
 	// The point of this test is to make sure that every non-cancelled
 	// timeout is eventually called
 
-	conn := &Conn{}
-	to := &timeouter{Conn: conn}
-	to.Start()
+	var mu sync.Mutex
+	daemon := NewDaemon(&mu)
 
 	// access the counter without synchronization
 	// from the timeout callbacks; this will give
@@ -99,19 +98,17 @@ func TestTimeoutLiveness(t *testing.T) {
 	wg.Add(3)
 	for i := 0; i < 3; i++ {
 		target := time.Now().Add(time.Millisecond * 10 * time.Duration(i))
-		to.AddTimeout(&timeout{
-			t: target,
-			f: func() {
-				counter++
-				diff := time.Now().Sub(target) // how late we were
-				if diff < 0 {
-					messages = append(messages, fmt.Sprintf("callback executed %v before target", diff))
-				} else {
-					messages = append(messages, fmt.Sprintf("callback executed %v after target", diff))
-				}
-				wg.Done()
-			},
-		})
+		f := func() {
+			counter++
+			diff := time.Now().Sub(target) // how late we were
+			if diff < 0 {
+				messages = append(messages, fmt.Sprintf("callback executed %v before target", diff))
+			} else {
+				messages = append(messages, fmt.Sprintf("callback executed %v after target", diff))
+			}
+			wg.Done()
+		}
+		daemon.AddTimeout(f, target)
 	}
 
 	wg.Wait()
