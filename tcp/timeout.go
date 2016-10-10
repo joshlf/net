@@ -50,13 +50,17 @@ type timeout struct {
 	cancel uint32 // 1 if cancelled, 0 otherwise; only access atomically
 }
 
+func (t *timeout) Cancel() {
+	atomic.StoreUint32(&t.cancel, 1)
+}
+
 type timeouter struct {
 	Conn *Conn
 
 	timeouts heapTimeouts
-	// used when len(timeouts) == 0 and the daemon
-	// needs to wait until there are more timeouts
-	wg sync.WaitGroup
+	// used when len(timeouts) == 0 and the daemon needs to
+	// wait until there are more timeouts
+	cond *sync.Cond
 	// used to indicate that the timeouter has been stopped;
 	// the daemon must always check this after acquiring
 	// mu and before doing any work, returning immediately
@@ -70,6 +74,7 @@ type timeouter struct {
 // Start must be called before any call to AddTimeout.
 func (t *timeouter) Start() {
 	t.timeouts = nil
+	t.cond = sync.NewCond(&t.mu)
 	go t.daemon()
 }
 
@@ -86,8 +91,9 @@ func (t *timeouter) Stop() {
 	t.mu.Lock()
 	t.stopped = true
 	if len(t.timeouts) == 0 {
-		// the daemon is blocking on t.wg
-		t.wg.Done()
+		// the daemon might be waiting on t.cond
+		// t.wg.Done()
+		t.cond.Broadcast()
 	}
 	t.mu.Unlock()
 }
@@ -100,8 +106,8 @@ func (t *timeouter) AddTimeout(to *timeout) {
 	heap.Push(&t.timeouts, to)
 	if len(t.timeouts) == 1 {
 		// there were previously 0 which means that
-		// the daemon is blocking on t.wg
-		t.wg.Done()
+		// the daemon might be waiting on t.cond
+		t.cond.Broadcast()
 	}
 	t.mu.Unlock()
 }
@@ -116,12 +122,11 @@ func (t *timeouter) daemon() {
 
 		if len(t.timeouts) == 0 {
 			// no timeouts; block until one is available
-			t.wg.Add(1)
-			t.mu.Unlock()
-			t.wg.Wait()
-			// there's a timeout now, so restart the loop
-			// and do the normal sleep thing
-			continue
+			t.cond.Wait()
+			if t.stopped {
+				t.mu.Unlock()
+				return
+			}
 		}
 
 		to := t.peek()
@@ -195,7 +200,7 @@ func (h *heapTimeouts) Less(i, j int) bool { return (*h)[i].t.Before((*h)[j].t) 
 func (h *heapTimeouts) Swap(i, j int)      { (*h)[i], (*h)[j] = (*h)[j], (*h)[i] }
 func (h *heapTimeouts) Push(x interface{}) { *h = append(*h, x.(*timeout)) }
 func (h *heapTimeouts) Pop() interface{} {
-	x := (*h)[len(*h)]
+	x := (*h)[len(*h)-1]
 	*h = (*h)[:len(*h)-1]
 	return x
 }
