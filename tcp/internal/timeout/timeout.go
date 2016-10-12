@@ -5,8 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	_ "unsafe"
+	_ "unsafe" // must import in order to use go:linkname directive below
 )
+
+// BUG(joshlf): If the daemon goroutine is sleeping on a timeout,
+// a timeout scheduled to fire before the one which is being slept
+// on will be blocked until the daemon wakes up.
 
 // Timeouts are handled using a Daemon, which runs a single daemon
 // goroutine that checks to see when the next timeout will occur,
