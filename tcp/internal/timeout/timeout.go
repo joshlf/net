@@ -63,7 +63,7 @@ type Daemon struct {
 	timeouts heapTimeouts
 	// used when len(timeouts) == 0 and the daemon needs to
 	// wait until there are more timeouts
-	cond *sync.Cond
+	cond sync.Cond
 	// used to indicate that the Daemon has been stopped;
 	// the daemon must always check this after acquiring
 	// mu and before doing any work, returning immediately
@@ -77,7 +77,7 @@ type Daemon struct {
 // callback is executed.
 func NewDaemon(locker sync.Locker) *Daemon {
 	d := &Daemon{locker: locker}
-	d.cond = sync.NewCond(&d.mu)
+	d.cond.L = &d.mu
 	go d.daemon()
 	return d
 }

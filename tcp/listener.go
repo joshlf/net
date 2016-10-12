@@ -14,13 +14,13 @@ type Listener struct {
 	lock, unlock, close func()
 	closed              bool
 
-	cond *sync.Cond
+	cond sync.Cond
 	mu   sync.Mutex
 }
 
 func newListener(close func()) *Listener {
 	l := &Listener{close: close}
-	l.cond = sync.NewCond(&l.mu)
+	l.cond.L = &l.mu
 	return l
 }
 
