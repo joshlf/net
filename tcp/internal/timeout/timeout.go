@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	_ "unsafe"
 )
 
 // Timeouts are handled using a Daemon, which runs a single daemon
@@ -72,6 +73,11 @@ type Daemon struct {
 	mu      sync.Mutex
 }
 
+// TODO(joshlf): Any way to make NewDaemon return a Daemon instead of a *Daemon?
+// It'd be better for locality to embed the Daemon directly in the Conn struct.
+// It would probably require something like an Init method instead of using
+// NewDaemon.
+
 // NewDaemon starts a new daemon and returns a handle to it.
 // A lock on locker will be acquired before any timeout's
 // callback is executed.
@@ -101,8 +107,10 @@ func (d *Daemon) Stop() {
 	d.mu.Unlock()
 }
 
-// AddTimeout schedules f to be called at time t. The returned *Timeout
-// can be used to cancel the timeout, in which case f will not be called.
+// AddTimeout schedules f to be called at time t, which must be calculated
+// relative to NowMonotonic (not time.Now). The returned *Timeout can be used
+// to cancel the timeout, in which case f will not be called. It is guaranteed
+//  that f will not be called before time t.
 func (d *Daemon) AddTimeout(f func(), t time.Time) *Timeout {
 	to := &Timeout{f: f, t: t}
 	d.mu.Lock()
@@ -134,8 +142,13 @@ func (d *Daemon) daemon() {
 		}
 
 		to := d.peek()
-		now := time.Now()
-		if now.Before(to.t) {
+		for {
+			// loop until we're sure it's after to.t (to keep
+			// guarantee documented in d.AddTimeout)
+			now := NowMonotonic()
+			if now.After(to.t) {
+				break
+			}
 			d.mu.Unlock()
 			time.Sleep(to.t.Sub(now))
 			d.mu.Lock()
@@ -208,3 +221,16 @@ func (h *heapTimeouts) Pop() interface{} {
 	*h = (*h)[:len(*h)-1]
 	return x
 }
+
+// NowMonotonic is like time.Now, but the result is monotonically increasing,
+// and does not necessarily correspond to the actual current time.
+func NowMonotonic() time.Time {
+	now := nanotime()
+	return time.Unix(now/1e9, now%1e9)
+}
+
+// NOTE(joshlf): runtime.nanotime uses CLOCK_MONOTONIC (see discussion
+// starting at https://github.com/golang/go/issues/12914#issuecomment-150579623)
+
+//go:linkname nanotime runtime.nanotime
+func nanotime() int64

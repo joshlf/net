@@ -38,7 +38,7 @@ func TestTimeout(t *testing.T) {
 	timeoutTests := make(map[*timeoutTest]*Timeout)
 
 	// run the test for one second
-	end := time.Now().Add(time.Second)
+	end := NowMonotonic().Add(time.Second)
 	numgoroutines := 4 // minimum
 	if runtime.NumCPU() > numgoroutines {
 		numgoroutines = runtime.NumCPU()
@@ -51,7 +51,7 @@ func TestTimeout(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				if time.Now().After(end) {
+				if NowMonotonic().After(end) {
 					return
 				}
 
@@ -67,7 +67,7 @@ func TestTimeout(t *testing.T) {
 				} else {
 					// 99 in 100 chance of spawning a new timeout
 					tt := makeTimeoutTest()
-					to := daemon.AddTimeout(tt.f, time.Now().Add(time.Millisecond*10))
+					to := daemon.AddTimeout(tt.f, NowMonotonic().Add(time.Millisecond*10))
 					mu.Lock()
 					timeoutTests[tt] = to
 					mu.Unlock()
@@ -97,10 +97,10 @@ func TestTimeoutLiveness(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 	for i := 0; i < 3; i++ {
-		target := time.Now().Add(time.Millisecond * 10 * time.Duration(i))
+		target := NowMonotonic().Add(time.Millisecond * 10 * time.Duration(i))
 		f := func() {
 			counter++
-			diff := time.Now().Sub(target) // how late we were
+			diff := NowMonotonic().Sub(target) // how late we were
 			if diff < 0 {
 				messages = append(messages, fmt.Sprintf("callback executed %v before target", diff))
 			} else {
