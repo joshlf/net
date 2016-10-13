@@ -80,6 +80,41 @@ func TestTimeout(t *testing.T) {
 	wg.Wait()
 }
 
+func TestTimeoutOrder(t *testing.T) {
+	// The point of this test is to make sure that if a timeout is scheduled
+	// while the daemon is sleeping waiting for an existing timeout, and the
+	// newly-scheduled timeout precedes the timeout for on which the daemon
+	// is sleeping, the newly-scheduled timeout is executed first, and without
+	// an excessive delay.
+
+	var mu sync.Mutex
+	daemon := NewDaemon(&mu)
+
+	var counter int
+	now := NowMonotonic()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	getCallback := func(counterVal int, target time.Time) func() {
+		return func() {
+			defer wg.Done()
+			now := NowMonotonic()
+			counter++
+			if counter != counterVal {
+				t.Errorf("got unexpected counter value after increment: got %v; want %v", counter, counterVal)
+			}
+			if now.Sub(target) > 100*time.Millisecond {
+				t.Errorf("timeout execution delay too large: %v", now.Sub(target))
+			}
+		}
+	}
+	deadline := now.Add(300 * time.Millisecond)
+	daemon.AddTimeout(getCallback(2, deadline), deadline)
+	time.Sleep(10 * time.Millisecond) // give the daemon a chance to sleep on it
+	deadline = now.Add(100 * time.Millisecond)
+	daemon.AddTimeout(getCallback(1, deadline), deadline)
+	wg.Wait()
+}
+
 func TestTimeoutLiveness(t *testing.T) {
 	// The point of this test is to make sure that every non-cancelled
 	// timeout is eventually called

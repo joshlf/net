@@ -8,14 +8,18 @@ import (
 	_ "unsafe" // must import in order to use go:linkname directive below
 )
 
-// BUG(joshlf): If the daemon goroutine is sleeping on a timeout,
-// a timeout scheduled to fire before the one which is being slept
-// on will be blocked until the daemon wakes up.
-
 // Timeouts are handled using a Daemon, which runs a single daemon
 // goroutine that checks to see when the next timeout will occur,
 // sleeps until that time, and then performs whatever action is
-// associated with that timeout.
+// associated with that timeout. In addition to sleeping, the daemon
+// also waits on a "wake" channel, which is writetn to whenever
+// a new timeout is added or the daemon is stopped. If a timeout
+// is added which is sooner than the current soonest timeout, this
+// ensures that the daemon wakes up and handles it on-time rather
+// than sleeping until the later time. Similarly, it ensures that
+// closes are detected immediately rather than only after the next
+// scheduled deadline (which could be arbitrarily far in the future,
+// leading to a resource leak).
 //
 // Timeouts may also be cancelled. In these cases, it's desirable to
 // avoid having the daemon acquire the global lock on the Conn
@@ -69,6 +73,26 @@ type Daemon struct {
 	// used when len(timeouts) == 0 and the daemon needs to
 	// wait until there are more timeouts
 	cond sync.Cond
+	// In case the daemon is sleeping when a new timeout
+	// is scheduled for earlier than the daemon will wake
+	// up, AddTimeout writes to this channel to wake the
+	// daemon up. The channel is buffered at least one,
+	// and all writes into the channel are selects with
+	// a default case. This means that the result of
+	// every send to the channel is that one element
+	// is in the channel, and the send will never block.
+	// Since every send is guaranteed to result in one
+	// element in the channel, every send is guaranteed
+	// to cause the daemon to read a value from the
+	// channel if it every attempts to at any point in
+	// the future. Once it reads an element, it then
+	// immediately acquires the lock. Having acquired the
+	// lock, it re-checks for the soonest timeout. Thus,
+	// the only time that the channel can be emptied is
+	// when the daemon will learn of the most up-to-date
+	// soonest timeout, and thus it's safe for the channel
+	// to be empty.
+	wake chan struct{}
 	// used to indicate that the Daemon has been stopped;
 	// the daemon must always check this after acquiring
 	// mu and before doing any work, returning immediately
@@ -88,6 +112,7 @@ type Daemon struct {
 func NewDaemon(locker sync.Locker) *Daemon {
 	d := &Daemon{locker: locker}
 	d.cond.L = &d.mu
+	d.wake = make(chan struct{}, 1)
 	go d.daemon()
 	return d
 }
@@ -108,6 +133,10 @@ func (d *Daemon) Stop() {
 		// the daemon might be waiting on d.cond
 		d.cond.Broadcast()
 	}
+	select {
+	case d.wake <- struct{}{}:
+	default:
+	}
 	d.mu.Unlock()
 }
 
@@ -123,6 +152,10 @@ func (d *Daemon) AddTimeout(f func(), t time.Time) *Timeout {
 		// there were previously 0 which means that
 		// the daemon might be waiting on d.cond
 		d.cond.Broadcast()
+	}
+	select {
+	case d.wake <- struct{}{}:
+	default:
 	}
 	d.mu.Unlock()
 	return to
@@ -145,16 +178,23 @@ func (d *Daemon) daemon() {
 			}
 		}
 
-		to := d.peek()
 		for {
 			// loop until we're sure it's after to.t (to keep
 			// guarantee documented in d.AddTimeout)
+
+			// Do d.peek() inside the loop in case a client
+			// called AddTimeout, woke us up, and the timeout
+			// they added is sooner than the previous heap min
+			to := d.peek()
 			now := NowMonotonic()
 			if now.After(to.t) {
 				break
 			}
 			d.mu.Unlock()
-			time.Sleep(to.t.Sub(now))
+			select {
+			case <-time.After(to.t.Sub(now)):
+			case <-d.wake:
+			}
 			d.mu.Lock()
 			if d.stopped {
 				d.mu.Unlock()
@@ -162,7 +202,7 @@ func (d *Daemon) daemon() {
 			}
 		}
 
-		to = heap.Pop(&d.timeouts).(*Timeout)
+		to := heap.Pop(&d.timeouts).(*Timeout)
 		if atomic.LoadUint32(&to.cancel) == 0 {
 			// it wasn't cancelled; we now have to release d.mu
 			// before acquiring d.locker in order to avoid a
