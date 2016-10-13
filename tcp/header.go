@@ -1,8 +1,8 @@
 package tcp
 
 import (
+	"github.com/joshlf/net/internal/errors"
 	"github.com/joshlf/net/internal/parse"
-	"github.com/juju/errors"
 )
 
 type optionType uint8

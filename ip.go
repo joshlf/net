@@ -3,7 +3,7 @@ package net
 import (
 	"net"
 
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 // IPv4 is an IPv4 address

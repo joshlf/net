@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joshlf/net/tcp/internal/buffer"
 	"github.com/joshlf/net/tcp/internal/timeout"
 )
 
@@ -29,6 +30,8 @@ type Conn struct {
 	state    state
 	statefn  func(conn *Conn, hdr *genericHeader, b []byte)
 	timeoutd *timeout.Daemon
+	incoming buffer.ReadBuffer
+	outgoing buffer.WriteBuffer
 
 	// client stuff
 	readCond, writeCond  sync.Cond
@@ -39,7 +42,11 @@ type Conn struct {
 }
 
 func newConn() *Conn {
-	c := &Conn{}
+	// TODO(joshlf): Set buffer size and sequence numbers appropriately
+	c := &Conn{
+		incoming: *buffer.NewReadBuffer(1024, 0),
+		outgoing: *buffer.NewWriteBuffer(1024),
+	}
 	c.timeoutd = timeout.NewDaemon(&c.mu)
 	c.readCond.L = &c.mu
 	c.writeCond.L = &c.mu

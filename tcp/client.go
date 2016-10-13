@@ -3,47 +3,73 @@ package tcp
 import (
 	"time"
 
+	"github.com/joshlf/net/internal/errors"
 	"github.com/joshlf/net/tcp/internal/timeout"
 )
 
+var (
+	timeoutErr = errors.Timeoutf("i/o timeout")
+)
+
+// TODO(joshlf): Deal with EOFs for reading and writing
+
+// Read implements the net.Conn Read method.
 func (c *Conn) Read(b []byte) (n int, err error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if reachedDeadline(c.rdeadline) {
-		// TODO(joshlf): return timeout error
+		return 0, timeoutErr
 	}
 
-	// TODO(joshlf): actually check to see if there's data
-	nodata := true
-	for nodata {
+	for n = c.incoming.Available(); n == 0; n = c.incoming.Available() {
 		c.readCond.Wait()
 		if reachedDeadline(c.rdeadline) {
-			// TODO(joshlf): return timeout error
+			return 0, timeoutErr
 		}
 	}
 
-	panic("not implemented")
+	if n > len(b) {
+		n = len(b)
+	}
+
+	c.incoming.ReadAndAdvance(b[:n])
+	return n, nil
 }
 
+// Write implements the net.Conn Write method.
 func (c *Conn) Write(b []byte) (n int, err error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if reachedDeadline(c.wdeadline) {
-		// TODO(joshlf): return timeout error
+		return 0, timeoutErr
 	}
 
-	// TODO(joshlf): actually check to see if there's space
-	bufferspace := false
-	for !bufferspace {
-		c.writeCond.Wait()
-		if reachedDeadline(c.wdeadline) {
-			// TODO(joshlf): return timeout error
+	for len(b) > 0 {
+		var avail int
+		for avail = c.outgoing.Cap(); avail == 0; avail = c.outgoing.Cap() {
+			c.writeCond.Wait()
+			if reachedDeadline(c.wdeadline) {
+				// we may have already written some data; return n
+				return n, timeoutErr
+			}
 		}
+		if avail > len(b) {
+			avail = len(b)
+		}
+		c.outgoing.Write(b[:avail])
+		b = b[avail:]
+		n += avail
 	}
 
-	panic("not implemented")
+	return n, nil
 }
 
 // NOTE(joshlf): The deadline mechanism is a tad subtle, so we document it

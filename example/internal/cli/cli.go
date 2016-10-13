@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 type Command struct {

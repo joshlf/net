@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 type udpDevice struct {
@@ -80,7 +80,7 @@ func (dev *udpDevice) registerCallback(f func(b []byte)) {
 
 func (dev *udpDevice) write(b []byte) (n int, err error) {
 	if len(b) > dev.mtu {
-		return 0, mtuErr("write to device: IPv4 payload exceeds MTU")
+		return 0, errors.MTUf("write to device: IPv4 payload exceeds MTU")
 	}
 	dev.sync.RLock()
 	defer dev.sync.RUnlock()
@@ -115,7 +115,7 @@ func (dev *udpDevice) readDaemon() {
 		// MTU allows). Maybe we need to define a simple header format
 		// to carry explicit frame length information?
 		if err != nil {
-			if !IsTimeout(err) {
+			if !errors.IsTimeout(err) {
 				// TODO(joshlf): Log it
 			}
 			dev.sync.RUnlock()

@@ -41,12 +41,18 @@ func (r *ReadBuffer) ReadAndAdvance(b []byte) {
 
 // Next returns the sequence number of the next byte which has not been written.
 func (r *ReadBuffer) Next() uint32 {
+	return uint32(int(r.seq) + r.Available())
+}
+
+// Available returns the number of bytes available to be read from the beginning
+// of the buffer.
+func (r *ReadBuffer) Available() int {
 	if r.firstInterval == -1 || r.intervals.intervals[r.firstInterval].begin != 0 {
 		// there are no intervals, or the offset from the
 		// beginning of the first interval is non-zero
-		return r.seq
+		return 0
 	}
-	return uint32(int(r.seq) + r.intervals.intervals[r.firstInterval].len)
+	return r.intervals.intervals[r.firstInterval].len
 }
 
 func (r *ReadBuffer) write(b []byte, offset int) {

@@ -3,7 +3,7 @@ package net
 import (
 	"sync"
 
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 // An EthernetInterface is a low-level interface capable of reading

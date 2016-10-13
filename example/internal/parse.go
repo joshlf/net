@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/joshlf/net"
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 // RouteEntry is an entry in a routing table whose next hop is an IP address.

@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/joshlf/net"
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 var udpIPv4Driver = deviceDriver{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/joshlf/net"
 	"github.com/joshlf/net/example/internal/cli"
+	"github.com/joshlf/net/internal/errors"
 	"github.com/joshlf/rate"
 )
 
@@ -67,7 +68,7 @@ based on the MTU of the device.`,
 				} else {
 					_, err = host.WriteTo(buf[:n], dst, net.IPProtocol(proto))
 				}
-				if net.IsMTU(err) && len(buf) > 0 {
+				if errors.IsMTU(err) && len(buf) > 0 {
 					// check len(buf) > 0 in case we have a pathological device
 					buf = buf[:len(buf)/2]
 					err = nil

@@ -4,8 +4,8 @@ import (
 	"math"
 	"sync"
 
+	"github.com/joshlf/net/internal/errors"
 	"github.com/joshlf/net/internal/parse"
-	"github.com/juju/errors"
 )
 
 const (
@@ -120,7 +120,7 @@ func (host *ipv4Host) WriteToTTLIPv4(b []byte, addr IPv4, proto IPProtocol, ttl 
 	defer host.mu.RUnlock()
 	nexthop, dev, ok := host.table.Lookup(addr)
 	if !ok {
-		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv4 packet")
+		return 0, errors.Annotate(errors.NewNoRoute(addr.String()), "write IPv4 packet")
 	}
 	devaddr, _, ok := dev.(IPv4Device).IPv4()
 	if !ok {

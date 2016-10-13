@@ -4,8 +4,8 @@ import (
 	"math"
 	"sync"
 
+	"github.com/joshlf/net/internal/errors"
 	"github.com/joshlf/net/internal/parse"
-	"github.com/juju/errors"
 )
 
 type ipv6Host struct {
@@ -107,7 +107,7 @@ func (host *ipv6Host) WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops
 	defer host.mu.RUnlock()
 	nexthop, dev, ok := host.table.Lookup(addr)
 	if !ok {
-		return 0, errors.Annotate(noRoute{addr.String()}, "write IPv6 packet")
+		return 0, errors.Annotate(errors.NewNoRoute(addr.String()), "write IPv6 packet")
 	}
 	devaddr, _, ok := dev.(IPv6Device).IPv6()
 	if !ok {

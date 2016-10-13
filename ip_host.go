@@ -1,7 +1,7 @@
 package net
 
 import (
-	"github.com/juju/errors"
+	"github.com/joshlf/net/internal/errors"
 )
 
 type IPv4Host interface {
