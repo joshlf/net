@@ -80,7 +80,7 @@ func (dev *udpDevice) registerCallback(f func(b []byte)) {
 
 func (dev *udpDevice) write(b []byte) (n int, err error) {
 	if len(b) > dev.mtu {
-		return 0, errors.MTUf("write to device: IPv4 payload exceeds MTU")
+		return 0, errors.MTUf(dev.mtu, "write to device: IPv4 payload exceeds MTU")
 	}
 	dev.sync.RLock()
 	defer dev.sync.RUnlock()

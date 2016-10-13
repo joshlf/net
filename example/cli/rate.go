@@ -57,7 +57,7 @@ based on the MTU of the device.`,
 			return
 		}
 
-		// start the buffer large and shrink until we don't get MTU errors
+		// start the buffer large and shrink if we get an MTU error
 		buf := make([]byte, 32768)
 		for err == nil {
 			var n int
@@ -70,7 +70,8 @@ based on the MTU of the device.`,
 				}
 				if errors.IsMTU(err) && len(buf) > 0 {
 					// check len(buf) > 0 in case we have a pathological device
-					buf = buf[:len(buf)/2]
+					// subtract 20 bytes for the IP header
+					buf = buf[:errors.GetMTU(err)-20]
 					err = nil
 					continue
 				}

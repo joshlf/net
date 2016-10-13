@@ -30,20 +30,34 @@ func Cause(err error) error {
 }
 
 type mtu struct {
+	mtu int
 	errors.Err
 }
 
+// MTUf can't construct mtu directly because 'mtu' argument shadows type name
+func newMTU(m int, err errors.Err) *mtu { return &mtu{m, err} }
+
 // MTUf constructs a new MTU error.
-func MTUf(format string, args ...interface{}) error {
+func MTUf(mtu int, format string, args ...interface{}) error {
 	err := errors.NewErr(format, args...)
 	err.SetLocation(1)
-	return &mtu{err}
+	return newMTU(mtu, err)
 }
 
 // IsMTU returns true if err is an MTU error as constructed using MTUf.
 func IsMTU(err error) bool {
 	_, ok := errors.Cause(err).(*mtu)
 	return ok
+}
+
+// GetMTU returns the mtu associated with err. If err is not an MTU error
+// (see IsMTU), GetMTU returns 0.
+func GetMTU(err error) int {
+	m, ok := errors.Cause(err).(*mtu)
+	if !ok {
+		return 0
+	}
+	return m.mtu
 }
 
 type timeout struct {
