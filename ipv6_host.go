@@ -17,28 +17,52 @@ type ipv6Host struct {
 	mu sync.RWMutex
 }
 
-func NewIPv6Host() IPv6Host {
-	return &ipv6Host{devices: make(map[IPv6Device]bool)}
+type ipv6ConfigurationHost struct {
+	*ipv6Host
+	ttl uint8
+
+	mu sync.RWMutex
 }
 
-// AddDevice adds dev, allowing host to send and receive IP packets
-// over the device. Afer calling AddDevice, the caller must not interact
-// with the device, except for through host, or until a subsequent
-// call to RemoveDevice.  If dev has already been registered, AddDevice
-// is a no-op.
-func (host *ipv6Host) AddIPv6Device(dev IPv6Device) {
+func (host *ipv6ConfigurationHost) rlock()   { host.mu.RLock(); host.ipv6Host.mu.RLock() }
+func (host *ipv6ConfigurationHost) runlock() { host.ipv6Host.mu.RUnlock(); host.mu.RUnlock() }
+func (host *ipv6ConfigurationHost) lock()    { host.mu.Lock(); host.ipv6Host.mu.Lock() }
+func (host *ipv6ConfigurationHost) unlock()  { host.ipv6Host.mu.Unlock(); host.mu.Unlock() }
+
+func NewIPv6Host() IPv6Host {
+	return &ipv6ConfigurationHost{
+		ipv6Host: &ipv6Host{devices: make(map[IPv6Device]bool)},
+		ttl:      defaultTTL,
+	}
+}
+
+func (host *ipv6ConfigurationHost) SetTTL(ttl uint8) {
+	if ttl == 0 {
+		ttl = defaultTTL
+	}
 	host.mu.Lock()
-	defer host.mu.Unlock()
+	host.ttl = ttl
+	host.mu.Unlock()
+}
+
+func (host *ipv6ConfigurationHost) GetConfigCopyIPv6() IPv6Host {
+	host.rlock()
+	new := *host
+	new.mu = sync.RWMutex{} // sync.RMUtexes can't be safely copied
+	host.runlock()
+	return &new
+}
+
+func (host *ipv6ConfigurationHost) AddIPv6Device(dev IPv6Device) {
+	host.lock()
+	defer host.unlock()
 	dev.RegisterIPv6Callback(func(b []byte) { host.callback(dev, b) })
 	host.devices[dev] = true
 }
 
-// RemoveDevice removes dev from the host. After calling RemoveDevice,
-// the caller may safely interact with the device directly. If no
-// such device is currently registered, RemoveDevice is a no-op.
-func (host *ipv6Host) RemoveIPv6Device(dev IPv6Device) {
-	host.mu.Lock()
-	defer host.mu.Unlock()
+func (host *ipv6ConfigurationHost) RemoveIPv6Device(dev IPv6Device) {
+	host.lock()
+	defer host.unlock()
 	if !host.devices[dev] {
 		return
 	}
@@ -46,63 +70,59 @@ func (host *ipv6Host) RemoveIPv6Device(dev IPv6Device) {
 	delete(host.devices, dev)
 }
 
-func (host *ipv6Host) AddIPv6Route(subnet IPv6Subnet, nexthop IPv6) {
-	host.mu.Lock()
+func (host *ipv6ConfigurationHost) AddIPv6Route(subnet IPv6Subnet, nexthop IPv6) {
+	host.lock()
 	host.table.AddRoute(subnet, nexthop)
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv6Host) AddIPv6DeviceRoute(subnet IPv6Subnet, dev IPv6Device) {
-	host.mu.Lock()
+func (host *ipv6ConfigurationHost) AddIPv6DeviceRoute(subnet IPv6Subnet, dev IPv6Device) {
+	host.lock()
 	host.table.AddDeviceRoute(subnet, dev)
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv6Host) IPv6Routes() []IPv6Route {
-	host.mu.RLock()
+func (host *ipv6ConfigurationHost) IPv6Routes() []IPv6Route {
+	host.rlock()
 	routes := host.table.Routes()
-	host.mu.RUnlock()
+	host.runlock()
 	return routes
 }
 
-func (host *ipv6Host) IPv6DeviceRoutes() []IPv6DeviceRoute {
-	host.mu.RLock()
+func (host *ipv6ConfigurationHost) IPv6DeviceRoutes() []IPv6DeviceRoute {
+	host.rlock()
 	routes := host.table.DeviceRoutes()
-	host.mu.RUnlock()
+	host.runlock()
 	return routes
 }
 
-// SetForwarding turns forwarding on or off for host. If forwarding is on,
-// received IP packets which are not destined for this host will be forwarded
-// to the appropriate next hop if possible.
-func (host *ipv6Host) SetForwarding(on bool) {
-	host.mu.Lock()
+func (host *ipv6ConfigurationHost) SetForwarding(on bool) {
+	host.lock()
 	host.forward = on
-	host.mu.Unlock()
+	host.unlock()
 }
 
-// Forwarding returns whether or not forwarding is turned on for host.
-func (host *ipv6Host) Forwarding() bool {
-	host.mu.RLock()
+func (host *ipv6ConfigurationHost) Forwarding() bool {
+	host.rlock()
 	on := host.forward
-	host.mu.RUnlock()
+	host.runlock()
 	return on
 }
 
-// RegisterCallback registers f to be called whenever an IP packet of the given
-// protocol is received. It overwrites any previously-registered callbacks.
-// If f is nil, any previously-registered callbacks are cleared.
-func (host *ipv6Host) RegisterIPv6Callback(f func(b []byte, src, dst IPv6), proto IPProtocol) {
-	host.mu.Lock()
+func (host *ipv6ConfigurationHost) RegisterIPv6Callback(f func(b []byte, src, dst IPv6), proto IPProtocol) {
+	host.lock()
 	host.callbacks[int(proto)] = f
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv6Host) WriteToIPv6(b []byte, addr IPv6, proto IPProtocol) (n int, err error) {
-	return host.WriteToTTLIPv6(b, addr, proto, defaultTTL)
+func (host *ipv6ConfigurationHost) WriteToIPv6(b []byte, addr IPv6, proto IPProtocol) (n int, err error) {
+	host.rlock()
+	n, err = host.write(b, addr, proto, host.ttl)
+	host.runlock()
+	return n, err
 }
 
-func (host *ipv6Host) WriteToTTLIPv6(b []byte, addr IPv6, proto IPProtocol, hops uint8) (n int, err error) {
+func (host *ipv6Host) write(b []byte, addr IPv6, proto IPProtocol, hops uint8) (n int, err error) {
 	host.mu.RLock()
 	defer host.mu.RUnlock()
 	nexthop, dev, ok := host.table.Lookup(addr)

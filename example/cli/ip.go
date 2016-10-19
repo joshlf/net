@@ -132,7 +132,9 @@ each of which will be joined with a single space character.`,
 				fmt.Println("could not parse ttl:", err)
 				return
 			}
-			_, err = host.WriteToTTL([]byte(strings.Join(args[4:], " ")), dst, net.IPProtocol(proto), uint8(ttl))
+			ttlhost := host.GetConfigCopy()
+			ttlhost.SetTTL(uint8(ttl))
+			_, err = ttlhost.WriteTo([]byte(strings.Join(args[4:], " ")), dst, net.IPProtocol(proto))
 			if err != nil {
 				fmt.Println("could not send:", err)
 			}

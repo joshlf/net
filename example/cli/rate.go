@@ -43,7 +43,7 @@ based on the MTU of the device.`,
 		var ttl uint64
 		if len(args) == 5 {
 			doTTL = true
-			ttl, err = strconv.ParseUint(args[3], 10, 8)
+			ttl, err = strconv.ParseUint(args[4], 10, 8)
 			if err != nil {
 				fmt.Println("could not parse ttl:", err)
 				return
@@ -64,7 +64,9 @@ based on the MTU of the device.`,
 			n, err = f.Read(buf)
 			if n > 0 {
 				if doTTL {
-					_, err = host.WriteToTTL(buf[:n], dst, net.IPProtocol(proto), uint8(ttl))
+					ttlhost := host.GetConfigCopy()
+					ttlhost.SetTTL(uint8(ttl))
+					_, err = ttlhost.WriteTo(buf[:n], dst, net.IPProtocol(proto))
 				} else {
 					_, err = host.WriteTo(buf[:n], dst, net.IPProtocol(proto))
 				}

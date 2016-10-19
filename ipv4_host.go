@@ -30,28 +30,52 @@ type ipv4Host struct {
 	mu sync.RWMutex
 }
 
-func NewIPv4Host() IPv4Host {
-	return &ipv4Host{devices: make(map[IPv4Device]bool)}
+type ipv4ConfigurationHost struct {
+	*ipv4Host
+	ttl uint8
+
+	mu sync.RWMutex
 }
 
-// AddDevice adds dev, allowing host to send and receive IP packets
-// over the device. Afer calling AddDevice, the caller must not interact
-// with the device, except for through host, or until a subsequent
-// call to RemoveDevice.  If dev has already been registered, AddDevice
-// is a no-op.
-func (host *ipv4Host) AddIPv4Device(dev IPv4Device) {
+func (host *ipv4ConfigurationHost) rlock()   { host.mu.RLock(); host.ipv4Host.mu.RLock() }
+func (host *ipv4ConfigurationHost) runlock() { host.ipv4Host.mu.RUnlock(); host.mu.RUnlock() }
+func (host *ipv4ConfigurationHost) lock()    { host.mu.Lock(); host.ipv4Host.mu.Lock() }
+func (host *ipv4ConfigurationHost) unlock()  { host.ipv4Host.mu.Unlock(); host.mu.Unlock() }
+
+func NewIPv4Host() IPv4Host {
+	return &ipv4ConfigurationHost{
+		ipv4Host: &ipv4Host{devices: make(map[IPv4Device]bool)},
+		ttl:      defaultTTL,
+	}
+}
+
+func (host *ipv4ConfigurationHost) SetTTL(ttl uint8) {
+	if ttl == 0 {
+		ttl = defaultTTL
+	}
 	host.mu.Lock()
-	defer host.mu.Unlock()
+	host.ttl = ttl
+	host.mu.Unlock()
+}
+
+func (host *ipv4ConfigurationHost) GetConfigCopyIPv4() IPv4Host {
+	host.rlock()
+	new := *host
+	new.mu = sync.RWMutex{} // sync.RMUtexes can't be safely copied
+	host.runlock()
+	return &new
+}
+
+func (host *ipv4ConfigurationHost) AddIPv4Device(dev IPv4Device) {
+	host.lock()
+	defer host.unlock()
 	dev.RegisterIPv4Callback(func(b []byte) { host.callback(dev, b) })
 	host.devices[dev] = true
 }
 
-// RemoveDevice removes dev from the host. After calling RemoveDevice,
-// the caller may safely interact with the device directly. If no
-// such device is currently registered, RemoveDevice is a no-op.
-func (host *ipv4Host) RemoveIPv4Device(dev IPv4Device) {
-	host.mu.Lock()
-	defer host.mu.Unlock()
+func (host *ipv4ConfigurationHost) RemoveIPv4Device(dev IPv4Device) {
+	host.lock()
+	defer host.unlock()
 	if !host.devices[dev] {
 		return
 	}
@@ -59,65 +83,66 @@ func (host *ipv4Host) RemoveIPv4Device(dev IPv4Device) {
 	delete(host.devices, dev)
 }
 
-func (host *ipv4Host) AddIPv4Route(subnet IPv4Subnet, nexthop IPv4) {
-	host.mu.Lock()
+func (host *ipv4ConfigurationHost) AddIPv4Route(subnet IPv4Subnet, nexthop IPv4) {
+	host.lock()
 	host.table.AddRoute(subnet, nexthop)
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv4Host) AddIPv4DeviceRoute(subnet IPv4Subnet, dev IPv4Device) {
-	host.mu.Lock()
+func (host *ipv4ConfigurationHost) AddIPv4DeviceRoute(subnet IPv4Subnet, dev IPv4Device) {
+	host.lock()
 	host.table.AddDeviceRoute(subnet, dev)
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv4Host) IPv4Routes() []IPv4Route {
-	host.mu.RLock()
+func (host *ipv4ConfigurationHost) IPv4Routes() []IPv4Route {
+	host.rlock()
 	routes := host.table.Routes()
-	host.mu.RUnlock()
+	host.runlock()
 	return routes
 }
 
-func (host *ipv4Host) IPv4DeviceRoutes() []IPv4DeviceRoute {
-	host.mu.RLock()
+func (host *ipv4ConfigurationHost) IPv4DeviceRoutes() []IPv4DeviceRoute {
+	host.rlock()
 	routes := host.table.DeviceRoutes()
-	host.mu.RUnlock()
+	host.runlock()
 	return routes
 }
 
 // SetForwarding turns forwarding on or off for host. If forwarding is on,
 // received IP packets which are not destined for this host will be forwarded
 // to the appropriate next hop if possible.
-func (host *ipv4Host) SetForwarding(on bool) {
-	host.mu.Lock()
+func (host *ipv4ConfigurationHost) SetForwarding(on bool) {
+	host.lock()
 	host.forward = on
-	host.mu.Unlock()
+	host.unlock()
 }
 
 // Forwarding returns whether or not forwarding is turned on for host.
-func (host *ipv4Host) Forwarding() bool {
-	host.mu.RLock()
+func (host *ipv4ConfigurationHost) Forwarding() bool {
+	host.rlock()
 	on := host.forward
-	host.mu.RUnlock()
+	host.runlock()
 	return on
 }
 
 // RegisterCallback registers f to be called whenever an IP packet of the given
 // protocol is received. It overwrites any previously-registered callbacks.
 // If f is nil, any previously-registered callbacks are cleared.
-func (host *ipv4Host) RegisterIPv4Callback(f func(b []byte, src, dst IPv4), proto IPProtocol) {
-	host.mu.Lock()
+func (host *ipv4ConfigurationHost) RegisterIPv4Callback(f func(b []byte, src, dst IPv4), proto IPProtocol) {
+	host.lock()
 	host.callbacks[int(proto)] = f
-	host.mu.Unlock()
+	host.unlock()
 }
 
-func (host *ipv4Host) WriteToIPv4(b []byte, addr IPv4, proto IPProtocol) (n int, err error) {
-	return host.WriteToTTLIPv4(b, addr, proto, defaultTTL)
+func (host *ipv4ConfigurationHost) WriteToIPv4(b []byte, addr IPv4, proto IPProtocol) (n int, err error) {
+	host.rlock()
+	n, err = host.write(b, addr, proto, host.ttl)
+	host.runlock()
+	return n, err
 }
 
-func (host *ipv4Host) WriteToTTLIPv4(b []byte, addr IPv4, proto IPProtocol, ttl uint8) (n int, err error) {
-	host.mu.RLock()
-	defer host.mu.RUnlock()
+func (host *ipv4Host) write(b []byte, addr IPv4, proto IPProtocol, ttl uint8) (n int, err error) {
 	nexthop, dev, ok := host.table.Lookup(addr)
 	if !ok {
 		return 0, errors.Annotate(errors.NewNoRoute(addr.String()), "write IPv4 packet")
