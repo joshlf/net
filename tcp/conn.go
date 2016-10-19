@@ -41,9 +41,11 @@ type Conn struct {
 	mu sync.Mutex
 }
 
-func newConn() *Conn {
+func newListenConn() *Conn {
 	// TODO(joshlf): Set buffer size and sequence numbers appropriately
 	c := &Conn{
+		state: stateListen,
+		statefn: (*Conn).listen,
 		incoming: *buffer.NewReadBuffer(1024, 0),
 		outgoing: *buffer.NewWriteBuffer(1024),
 	}

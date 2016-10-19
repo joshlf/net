@@ -103,7 +103,7 @@ func (host *IPv4Host) handle(b []byte, src, dst net.IPv4, hdr *tcpIPv4Header) {
 
 	// We actually have a new connection - construct it
 	// and inform the listener about it
-	c := newConn()
+	c := newListenConn()
 	ok = listener.accept(c)
 	if !ok {
 		// The listener didn't have room in its buffer;
