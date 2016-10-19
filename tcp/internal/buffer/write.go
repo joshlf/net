@@ -9,8 +9,11 @@ type WriteBuffer struct {
 }
 
 // NewWriteBuffer creates a new WriteBuffer with a total buffer capacity of n.
-func NewWriteBuffer(n int) *WriteBuffer {
-	return &WriteBuffer{buf: *newCircularBuffer(n)}
+func NewWriteBuffer(n int, seq uint32) *WriteBuffer {
+	return &WriteBuffer{
+		seq: seq,
+		buf: *newCircularBuffer(n),
+	}
 }
 
 // Len returns the number of bytes currently stored in w.
@@ -22,6 +25,11 @@ func (w *WriteBuffer) Len() int {
 // w.Len() + w.Cap() is the total capacity of w.
 func (w *WriteBuffer) Cap() int {
 	return w.buf.Len() - w.len
+}
+
+// Seq returns the sequence number of the first byte in w.
+func (w *WriteBuffer) Seq() uint32 {
+	return w.seq
 }
 
 // Write appends b to the data currently stored in w, increasing the length of
@@ -45,4 +53,5 @@ func (w *WriteBuffer) Advance(n int) {
 	// TODO(joshlf): Maybe have n be a uint32?
 	w.buf.Advance(n)
 	w.len -= n
+	w.seq += uint32(n)
 }

@@ -1,6 +1,8 @@
 package tcp
 
 import (
+	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -24,6 +26,27 @@ const (
 	stateClosed
 )
 
+var stateStrs = [...]string{
+	stateListen:      "LISTEN",
+	stateSYNRcvd:     "SYN_RCVD",
+	stateSYNSent:     "SYN_SENT",
+	stateEstablished: "ESTABLISHED",
+	stateFINWait1:    "FIN_WAIT_1",
+	stateFINWait2:    "FIN_WAIT_2",
+	stateClosing:     "CLOSING",
+	stateTimeWait:    "TIME_WAIT",
+	stateCloseWait:   "CLOSE_WAIT",
+	stateLastACK:     "LAST_ACK",
+	stateClosed:      "CLOSED",
+}
+
+func (s state) String() string {
+	if int(s) >= len(stateStrs) {
+		return fmt.Sprintf("UNKNOWN_STATE(%v)", int(s))
+	}
+	return stateStrs[int(s)]
+}
+
 type seq uint32
 
 type Conn struct {
@@ -42,12 +65,11 @@ type Conn struct {
 }
 
 func newListenConn() *Conn {
-	// TODO(joshlf): Set buffer size and sequence numbers appropriately
+	// TODO(joshlf): Set buffer size appropriately
 	c := &Conn{
-		state: stateListen,
-		statefn: (*Conn).listen,
-		incoming: *buffer.NewReadBuffer(1024, 0),
-		outgoing: *buffer.NewWriteBuffer(1024),
+		state:    stateListen,
+		statefn:  (*Conn).listen,
+		outgoing: *buffer.NewWriteBuffer(1024, rand.Uint32()),
 	}
 	c.timeoutd = timeout.NewDaemon(&c.mu)
 	c.readCond.L = &c.mu
@@ -58,5 +80,16 @@ func newListenConn() *Conn {
 func (conn *Conn) callback(hdr *genericHeader, b []byte) { conn.statefn(conn, hdr, b) }
 
 func (conn *Conn) listen(hdr *genericHeader, b []byte) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	conn.incoming = *buffer.NewReadBuffer(1024, hdr.seq+1)
+	// TODO(joshlf)
+}
 
+// State returns the name of the TCP state that conn is currently in.
+func (conn *Conn) State() string {
+	conn.mu.Lock()
+	str := conn.state.String()
+	conn.mu.Unlock()
+	return str
 }
