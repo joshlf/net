@@ -82,7 +82,16 @@ func (conn *Conn) callback(hdr *genericHeader, b []byte) { conn.statefn(conn, hd
 func (conn *Conn) listen(hdr *genericHeader, b []byte) {
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
+	if !hdr.SYN() {
+		panic("internal error: non-SYN delivered to state LISTEN")
+	}
+
 	conn.incoming = *buffer.NewReadBuffer(1024, hdr.seq+1)
+	// TODO(joshlf)
+}
+
+func (conn *Conn) sendReset(hdr *genericHeader) {
+	// See "Reset Generation," https://tools.ietf.org/html/rfc793#page-36
 	// TODO(joshlf)
 }
 
